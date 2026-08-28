@@ -2,22 +2,115 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
 		<meta name="generator" content={Astro.generator} />
-		<title>Astro Basics</title>
+		<title>doot — p2p File Transfer</title>
+		<meta
+			name="description"
+			content="Direct, encrypted peer-to-peer file sharing. No file limits, no cloud storage."
+		/>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800&display=swap"
+			rel="stylesheet"
+		/>
+		<script
+			src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"
+		></script>
 	</head>
 	<body>
 		<slot />
 	</body>
 </html>
+<style is:global>
+	:root {
+		--bg-base: #292d3e;
+		--bg-surface: #323752;
+		--bg-surface-elevated: #3b4162;
+		--bg-input: #222436;
+		--border-subtle: #40456866;
+		--border-focus: #565d84;
 
-<style>
+		--text-primary: #eef0f7;
+		--text-secondary: #a3a8c2;
+		--text-muted: #767c9c;
+
+		--accent-primary: oklab(76.976% 0.07841 0.1106);
+		--accent-primary-hover: oklab(71% 0.084 0.118);
+		--accent-glow: oklab(76.976% 0.07841 0.1106 / 0.28);
+		--accent-text: oklab(86% 0.06 0.09);
+
+		--text-on-accent: #ffffff;
+
+		--shadow-sm:
+			0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+		--shadow: 0 1px 3px 0 rgb(0 0 0 / 0.2), 0 1px 2px -1px rgb(0 0 0 / 0.2);
+
+		--font-sans:
+			"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+			sans-serif;
+		--font-mono:
+			"Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+			monospace;
+	}
+	*,
+	*::before,
+	*::after {
+		box-sizing: border-box;
+		margin: 0;
+		padding: 0;
+	}
+	[hidden] {
+		display: none !important;
+	}
+	iconify-icon {
+		display: inline-block;
+		width: 1em;
+		height: 1em;
+		vertical-align: middle;
+	}
 	html,
 	body {
-		margin: 0;
 		width: 100%;
-		height: 100%;
+		min-height: 100%;
+		background-color: var(--bg-base);
+		color: var(--text-primary);
+		font-family: var(--font-sans);
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+		line-height: 1.5;
+	}
+	button,
+	input {
+		font-family: inherit;
+	}
+
+	button {
+		border: 0;
+	}
+
+	.header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding-bottom: 20px;
+		border-bottom: 1px solid var(--border-subtle);
+	}
+
+	.brand {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		text-decoration: none;
+		color: inherit;
+	}
+
+	.brand-name {
+		font-size: 20px;
+		font-weight: 800;
+		transform: translateY(0px);
+		letter-spacing: -0.04em;
 	}
 </style>

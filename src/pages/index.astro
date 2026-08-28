@@ -1,11 +1,404 @@
 ---
-import Welcome from '../components/Welcome.astro';
-import Layout from '../layouts/Layout.astro';
-
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+import Layout from "../layouts/Layout.astro";
+import DootLogo from "../components/DootLogo.astro";
 ---
 
 <Layout>
-	<Welcome />
+	<div class="app-container">
+		<header class="header">
+			<a href="/" class="brand">
+				<DootLogo size={56} />
+				<span class="brand-name">doot</span>
+			</a>
+			<button
+				id="info-btn"
+				class="info-btn"
+				aria-label="About doot"
+				title="About doot"
+			>
+				<iconify-icon icon="mdi:information-outline"></iconify-icon>
+			</button>
+		</header>
+
+		<!-- Information Dialog -->
+		<dialog id="info-dialog" class="info-dialog">
+			<div class="dialog-content">
+				<div class="dialog-header">
+					<div class="dialog-title-wrap">
+						<h2 class="dialog-title">Direct P2P Transfer</h2>
+					</div>
+					<button
+						id="dialog-close-btn"
+						class="dialog-close-btn"
+						aria-label="Close dialog"
+					>
+						<iconify-icon icon="mdi:close"></iconify-icon>
+					</button>
+				</div>
+
+				<div class="dialog-body">
+					<div class="info-item">
+						<div class="info-icon">
+							<iconify-icon icon="mdi:shield-lock-outline"
+							></iconify-icon>
+						</div>
+						<div class="info-text">
+							<strong>End-to-End Direct</strong>
+							<p>
+								Files stream directly between devices over
+								encrypted peer channels without intermediary
+								servers.
+							</p>
+						</div>
+					</div>
+
+					<div class="info-item">
+						<div class="info-icon">
+							<iconify-icon icon="mdi:cloud-off-outline"
+							></iconify-icon>
+						</div>
+						<div class="info-text">
+							<strong>Zero Cloud Storage</strong>
+							<p>
+								No file uploads, no storage caps, and zero data
+								logging. Once the transfer completes, nothing
+								remains on any server.
+							</p>
+						</div>
+					</div>
+
+					<div class="info-item">
+						<div class="info-icon">
+							<iconify-icon icon="mdi:lightning-bolt-outline"
+							></iconify-icon>
+						</div>
+						<div class="info-text">
+							<strong>Line-Speed Transfers</strong>
+							<p>
+								Saturates full local or direct network bandwidth
+								without cloud throttling.
+							</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</dialog>
+
+		<main class="main-content">
+			<div class="hero-section">
+				<h1 class="hero-title">Join a Room</h1>
+				<p class="hero-subtitle">
+					The one who joins second is the reciever
+				</p>
+			</div>
+
+			<section class="join-card">
+				<form
+					id="join-form"
+					class="action-form"
+					action="/room"
+					method="GET"
+				>
+					<div class="input-group">
+						<label for="room-input" class="input-label"
+							>ROOM NAME</label
+						>
+						<input
+							id="room-input"
+							name="room"
+							type="text"
+							placeholder="e.g. swift-falcon-42"
+							class="text-input mono-font"
+							spellcheck="false"
+							autocomplete="off"
+							required
+						/>
+					</div>
+
+					<button
+						id="btn-enter"
+						type="submit"
+						class="btn btn-primary"
+					>
+						Enter Room
+					</button>
+				</form>
+			</section>
+		</main>
+	</div>
 </Layout>
+
+<script>
+	const infoBtn = document.getElementById(
+		"info-btn",
+	) as HTMLButtonElement | null;
+	const infoDialog = document.getElementById(
+		"info-dialog",
+	) as HTMLDialogElement | null;
+	const dialogCloseBtn = document.getElementById(
+		"dialog-close-btn",
+	) as HTMLButtonElement | null;
+
+	infoBtn?.addEventListener("click", () => {
+		infoDialog?.showModal();
+	});
+
+	dialogCloseBtn?.addEventListener("click", () => {
+		infoDialog?.close();
+	});
+
+	infoDialog?.addEventListener("click", (e) => {
+		if (e.target === infoDialog) {
+			infoDialog.close();
+		}
+	});
+</script>
+
+<style>
+	.app-container {
+		min-height: 100vh;
+		display: flex;
+		flex-direction: column;
+		max-width: 880px;
+		margin: 0 auto;
+		padding: 24px 20px;
+	}
+
+	.info-btn {
+		background: transparent;
+		border: 1px solid var(--border-subtle);
+		color: var(--text-muted);
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 18px;
+		cursor: pointer;
+		transition:
+			color 0.15s ease,
+			border-color 0.15s ease,
+			background-color 0.15s ease;
+	}
+
+	.info-btn:hover {
+		color: var(--text-secondary);
+		border-color: var(--border-focus);
+		background-color: var(--bg-surface);
+	}
+
+	/* Info Dialog */
+	.info-dialog {
+		background: var(--bg-surface);
+		border: 1px solid var(--border-subtle);
+		border-radius: 12px;
+		padding: 0;
+		color: var(--text-primary);
+		max-width: 440px;
+		width: 90vw;
+		box-shadow:
+			0 16px 40px rgba(0, 0, 0, 0.35),
+			0 0 0 1px rgba(255, 255, 255, 0.05);
+		margin: auto;
+		outline: none;
+	}
+
+	.info-dialog::backdrop {
+		background: rgba(15, 17, 26, 0.7);
+		backdrop-filter: blur(4px);
+	}
+
+	.dialog-content {
+		padding: 24px;
+		display: flex;
+		flex-direction: column;
+		gap: 20px;
+	}
+
+	.dialog-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding-bottom: 14px;
+		border-bottom: 1px solid var(--border-subtle);
+	}
+
+	.dialog-title-wrap {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.dialog-title {
+		font-size: 16px;
+		font-weight: 700;
+		letter-spacing: -0.02em;
+	}
+
+	.dialog-close-btn {
+		background: transparent;
+		border: none;
+		color: var(--text-muted);
+		cursor: pointer;
+		font-size: 18px;
+		padding: 4px;
+		border-radius: 6px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		transition:
+			color 0.15s ease,
+			background-color 0.15s ease;
+	}
+
+	.dialog-close-btn:hover {
+		color: var(--text-primary);
+		background: var(--bg-surface-elevated);
+	}
+
+	.dialog-body {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+	}
+
+	.info-item {
+		display: flex;
+		gap: 12px;
+		align-items: flex-start;
+	}
+
+	.info-icon {
+		margin-inline-end: 8px;
+		/* background: var(--bg-surface-elevated); */
+		color: var(--accent-text);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 22px;
+		flex-shrink: 0;
+		margin-top: 4px;
+	}
+
+	.info-text strong {
+		display: block;
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--text-primary);
+		margin-bottom: 2px;
+	}
+
+	.info-text p {
+		font-size: 12px;
+		color: var(--text-secondary);
+		line-height: 1.45;
+	}
+
+	.main-content {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		align-items: center;
+		padding: 56px 0;
+	}
+
+	.hero-section {
+		margin-bottom: 36px;
+		text-align: center;
+	}
+
+	.hero-title {
+		font-size: 34px;
+		font-weight: 800;
+		letter-spacing: -0.03em;
+		margin-bottom: 8px;
+	}
+
+	.hero-subtitle {
+		font-size: 15px;
+		color: var(--text-secondary);
+		max-width: 420px;
+		margin: 0 auto;
+	}
+
+	.join-card {
+		width: 100%;
+		max-width: 420px;
+		background-color: var(--bg-surface);
+		border: 1px solid var(--border-subtle);
+		border-radius: 10px;
+		padding: 26px;
+	}
+
+	@media (max-width: 600px) {
+		.join-card {
+			padding: 20px;
+		}
+	}
+
+	.action-form {
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+
+	.input-group {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.input-label {
+		font-size: 11px;
+		font-weight: 700;
+		letter-spacing: 0.05em;
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+	}
+
+	.text-input {
+		width: 100%;
+		background-color: var(--bg-input);
+		border: 1px solid var(--border-subtle);
+		border-radius: 8px;
+		padding: 12px 14px;
+		color: var(--text-primary);
+		font-size: 14px;
+		outline: none;
+		transition:
+			border-color 0.15s ease,
+			box-shadow 0.15s ease;
+	}
+
+	.text-input:focus {
+		border-color: var(--accent-primary);
+		box-shadow: 0 0 0 2px var(--accent-glow);
+	}
+
+	.mono-font {
+		font-family: var(--font-mono);
+		letter-spacing: -0.01em;
+	}
+
+	.btn {
+		width: 100%;
+		padding: 13px 18px;
+		border-radius: 8px;
+		font-size: 14px;
+		font-weight: 600;
+		cursor: pointer;
+		border: none;
+		transition: background-color 0.15s ease;
+	}
+
+	.btn-primary {
+		background-color: var(--accent-primary);
+		color: var(--text-on-accent);
+	}
+
+	.btn-primary:hover {
+		background-color: var(--accent-primary-hover);
+	}
+</style>

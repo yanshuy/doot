@@ -1,0 +1,227 @@
+---
+import FileCard from "./FileCard.astro";
+---
+
+<div class="receive-column">
+    <div class="files-section">
+        <div id="remote-empty-state" class="empty-state">
+            <iconify-icon icon="mdi:cloud-download-outline" class="empty-icon"
+            ></iconify-icon>
+            <p>No files available to receive</p>
+        </div>
+
+        <div id="remote-file-grid" class="file-grid" hidden>
+            <!-- Remote file cards populated dynamically -->
+        </div>
+    </div>
+</div>
+
+<!-- Reusable FileCard template for receive mode -->
+<FileCard mode="receive" />
+
+<script>
+    import {
+        requestRemoteFile,
+        saveReceivedFile,
+        cancelTransfer,
+        type FileMetadata,
+        type TransferProgress,
+    } from "../transfer";
+    import { iconForFile, formatSize } from "../transfer/fileUtils";
+
+    const remoteTemplate = document.getElementById(
+        "remote-file-card-template",
+    ) as HTMLTemplateElement | null;
+    const remoteFileGrid = document.getElementById(
+        "remote-file-grid",
+    ) as HTMLElement | null;
+    const remoteEmptyState = document.getElementById(
+        "remote-empty-state",
+    ) as HTMLElement | null;
+
+    export function renderRemoteFiles(remoteFiles: FileMetadata[]): void {
+        if (!remoteFileGrid || !remoteEmptyState || !remoteTemplate) return;
+
+        const hasFiles = remoteFiles.length > 0;
+        remoteEmptyState.hidden = hasFiles;
+        remoteFileGrid.hidden = !hasFiles;
+
+        if (!hasFiles) {
+            remoteFileGrid.replaceChildren();
+            return;
+        }
+
+        const fragment = document.createDocumentFragment();
+
+        remoteFiles.forEach((f) => {
+            const clone = remoteTemplate.content.cloneNode(
+                true,
+            ) as DocumentFragment;
+            const root = clone.querySelector(
+                ".file-card",
+            ) as HTMLElement | null;
+            const iconEls = clone.querySelectorAll(".file-icon");
+            const nameEl = clone.querySelector(
+                ".file-name",
+            ) as HTMLElement | null;
+            const typePill = clone.querySelector(
+                ".file-type-pill",
+            ) as HTMLElement | null;
+            const sizeEl = clone.querySelector(
+                ".file-size",
+            ) as HTMLElement | null;
+            const downloadBtns = clone.querySelectorAll(".file-download-btn");
+            const cancelBtns = clone.querySelectorAll(".file-cancel-btn");
+            const saveBtns = clone.querySelectorAll(".file-save-btn");
+
+            if (root) root.dataset.fileId = f.id;
+            const ext = f.name.split(".").pop()?.toUpperCase() || "FILE";
+            const iconName = iconForFile(f.name);
+
+            iconEls.forEach((iconEl) => iconEl.setAttribute("icon", iconName));
+            if (nameEl) {
+                nameEl.textContent = f.name;
+                nameEl.setAttribute("title", f.name);
+            }
+            if (typePill) typePill.textContent = ext;
+            if (sizeEl) sizeEl.textContent = formatSize(f.size);
+
+            downloadBtns.forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    (btn as HTMLElement).hidden = true;
+                    // Show progress ring immediately
+                    const progressWraps = root?.querySelectorAll(
+                        ".progress-action-wrap",
+                    );
+                    progressWraps?.forEach(
+                        (w) => ((w as HTMLElement).hidden = false),
+                    );
+                    requestRemoteFile(f.id);
+                });
+            });
+
+            cancelBtns.forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    cancelTransfer(f.id);
+                    // Reset back to accept button
+                    const progressWraps = root?.querySelectorAll(
+                        ".progress-action-wrap",
+                    );
+                    progressWraps?.forEach(
+                        (w) => ((w as HTMLElement).hidden = true),
+                    );
+                    downloadBtns.forEach(
+                        (b) => ((b as HTMLElement).hidden = false),
+                    );
+                });
+            });
+
+            saveBtns.forEach((btn) => {
+                btn.addEventListener("click", async () => {
+                    await saveReceivedFile(f.id);
+                });
+            });
+
+            fragment.appendChild(clone);
+        });
+
+        remoteFileGrid.replaceChildren(fragment);
+    }
+
+    export function updateTransferProgressBar(
+        progress: TransferProgress,
+    ): void {
+        const card = document.querySelector(
+            `[data-file-id="${progress.fileId}"]`,
+        );
+        if (!card) return;
+
+        const downloadBtns = card.querySelectorAll(".file-download-btn");
+        const saveBtns = card.querySelectorAll(".file-save-btn");
+        const progressWraps = card.querySelectorAll(".progress-action-wrap");
+        const circleFills = card.querySelectorAll(".circle-fill");
+
+        downloadBtns.forEach((btn) => ((btn as HTMLElement).hidden = true));
+        progressWraps.forEach((wrap) => ((wrap as HTMLElement).hidden = false));
+
+        const circumference = 94.25; // 2 * pi * 15
+        const pct = Math.min(1, Math.max(0, progress.progress));
+
+        circleFills.forEach((fill) => {
+            (fill as SVGElement).setAttribute(
+                "stroke-dasharray",
+                `${(pct * circumference).toFixed(1)}, ${circumference}`,
+            );
+        });
+
+        // When complete (100%), swap progress ring with Save button
+        if (pct >= 1) {
+            progressWraps.forEach(
+                (wrap) => ((wrap as HTMLElement).hidden = true),
+            );
+            saveBtns.forEach((btn) => ((btn as HTMLElement).hidden = false));
+        }
+    }
+
+    // Attach to window so room.astro can dispatch updates
+    (window as any).__dootReceive = {
+        renderRemoteFiles,
+        updateTransferProgressBar,
+    };
+</script>
+
+<style>
+    .receive-column {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        min-height: 0;
+        flex: 1;
+    }
+
+    .files-section {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .empty-state {
+        min-height: 160px;
+        border: 1px dashed var(--border-subtle);
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        color: var(--text-muted);
+        font-size: 13px;
+        background-color: var(--bg-surface);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .empty-icon {
+        font-size: 28px;
+        width: 28px;
+        height: 28px;
+        opacity: 0.6;
+    }
+
+    .file-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 12px;
+        max-height: 380px;
+        overflow-y: auto;
+        padding-right: 2px;
+    }
+
+    @media (max-width: 720px) {
+        .file-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: none;
+            overflow-y: visible;
+        }
+    }
+</style>

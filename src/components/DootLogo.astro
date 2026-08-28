@@ -1,0 +1,162 @@
+---
+interface Props {
+  class?: string;
+  size?: number;
+}
+
+const { class: className = "brand-logo", size = 56 } = Astro.props;
+---
+
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 500 500"
+  width={size}
+  height={size}
+  class={className}
+>
+  <style>
+    .doot-logo {
+      cursor: pointer;
+      transform-origin: center;
+      transition: transform 0.25s ease;
+    }
+    .doot-logo:hover {
+      transform: scale(1.01);
+    }
+
+    /* Blush transitions only on hover */
+    .blush {
+      opacity: 0;
+      transition: opacity 0.2s ease-in-out;
+    }
+    .doot-logo:hover .blush {
+      opacity: 0.9;
+    }
+
+    /* Face Expression Switch */
+    .normal-face {
+      opacity: 1;
+      transition: opacity 0.2s ease;
+    }
+    .hover-face {
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    .doot-logo:hover .normal-face {
+      opacity: 0;
+    }
+    .doot-logo:hover .hover-face {
+      opacity: 1;
+    }
+  </style>
+
+  <defs>
+    <!-- Soft Warm Glow Body Gradient -->
+    <radialGradient id="dootGrad" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#FFFFFF"></stop>
+      <stop offset="65%" stop-color="#FFFDF5"></stop>
+      <stop offset="100%" stop-color="#FCEFD8"></stop>
+    </radialGradient>
+
+    <!-- Feet Gradient -->
+    <linearGradient id="footGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"></stop>
+      <stop offset="100%" stop-color="#F7E2C1"></stop>
+    </linearGradient>
+  </defs>
+
+  <g class="doot-logo">
+    <!-- Left Hand Wave (Reduced height, compact & cute) -->
+    <path
+      d="M 108 268 C 96 256, 80 264, 86 276 C 72 280, 75 295, 88 298 C 80 306, 92 318, 105 312 C 114 306, 122 298, 130 290"
+      fill="url(#dootGrad)"
+      stroke="#2B2118"
+      stroke-width="10"
+      stroke-linecap="round"
+      stroke-linejoin="round"></path>
+
+    <!-- Right Hand Wave (Reduced height, compact & cute) -->
+    <path
+      d="M 392 268 C 404 256, 420 264, 414 276 C 428 280, 425 295, 412 298 C 420 306, 408 318, 395 312 C 386 306, 378 298, 370 290"
+      fill="url(#dootGrad)"
+      stroke="#2B2118"
+      stroke-width="10"
+      stroke-linecap="round"
+      stroke-linejoin="round"></path>
+
+    <!-- Extra Bubbly, Circular Cloud Face with Deep Outward Waves -->
+    <path
+      d="M 130 142 C 105 130, 52 150, 89 219 C 55 260, 82 330, 154 322 C 190 365, 270 365, 311 316 C 380 340, 410 275, 350 231 C 370 165, 320 105, 260 130 C 220 90, 155 80, 130 142 Z"
+      style="transform: translateX(30px) translateY(50px) scaleX(1.05) scaleY(1); transform-origin: bottom"
+      fill="url(#dootGrad)"
+      stroke="#2B2118"
+      stroke-width="10"
+      stroke-linecap="round"
+      stroke-linejoin="round"></path>
+
+    <!-- Chubby Left Foot -->
+    <ellipse
+      cx="205"
+      cy="386"
+      rx="34"
+      ry="22"
+      transform="rotate(-6 205 386)"
+      fill="url(#footGrad)"
+      stroke="#2B2118"
+      stroke-width="10"></ellipse>
+
+    <!-- Chubby Right Foot -->
+    <ellipse
+      cx="295"
+      cy="386"
+      rx="34"
+      ry="22"
+      transform="rotate(6 295 386)"
+      fill="url(#footGrad)"
+      stroke="#2B2118"
+      stroke-width="10"></ellipse>
+
+    <!-- Hover-Only Blush (Below Eyes) -->
+    <g class="blush">
+      <ellipse cx="168" cy="298" rx="14" ry="8" fill="#F8B18A"></ellipse>
+      <ellipse cx="332" cy="298" rx="14" ry="8" fill="#F8B18A"></ellipse>
+    </g>
+
+    <!-- NORMAL STATE (Eyes Open, Clean Smile, No Blush) -->
+    <g class="normal-face">
+      <!-- Left Eye -->
+      <ellipse cx="204" cy="260" rx="13" ry="17" fill="#2B2118"></ellipse>
+      <!-- Right Eye -->
+      <ellipse cx="296" cy="260" rx="13" ry="17" fill="#2B2118"></ellipse>
+      <!-- Rounded Soft Smile -->
+      <path
+        d="M 238 272 Q 250 290 262 272"
+        fill="none"
+        stroke="#2B2118"
+        stroke-width="8"
+        stroke-linecap="round"></path>
+    </g>
+
+    <!-- HOVER STATE (Both Eyes Closed / Happy Wink Expression) -->
+    <g class="hover-face">
+      <!-- Left Happy Eye Closed (>) -->
+      <path
+        d="M 190 252 L 210 262 L 190 272"
+        fill="none"
+        stroke="#2B2118"
+        stroke-width="8"
+        stroke-linecap="round"
+        stroke-linejoin="round"></path>
+      <!-- Right Happy Eye Closed (<) -->
+      <path
+        d="M 310 252 L 290 262 L 310 272"
+        fill="none"
+        stroke="#2B2118"
+        stroke-width="8"
+        stroke-linecap="round"
+        stroke-linejoin="round"></path>
+      <!-- Open Happy Mouth -->
+      <path d="M 238 268 Q 250 294 262 268 Z" fill="#2B2118"></path>
+    </g>
+  </g>
+</svg>

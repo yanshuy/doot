@@ -1,0 +1,190 @@
+---
+
+---
+
+<div class="sidebar-column">
+    <section id="debug-chat-section" class="debug-panel">
+        <div class="debug-panel-header">
+            <span class="panel-title">DataChannel Debug</span>
+            <span id="debug-dc-status" class="debug-status-pill mono-font"
+                >closed</span
+            >
+        </div>
+        <div id="debug-log" class="debug-log mono-font"></div>
+        <form id="debug-form" class="debug-form">
+            <input
+                id="debug-input"
+                type="text"
+                placeholder="Send message to peer..."
+                class="text-input mono-font debug-input"
+                autocomplete="off"
+                disabled
+            />
+            <button
+                id="debug-send-btn"
+                type="submit"
+                class="btn btn-primary debug-btn"
+                disabled
+            >
+                Send
+            </button>
+        </form>
+    </section>
+</div>
+
+<script>
+    import { sendDataMessage } from "../transfer";
+
+    const debugDcStatus = document.getElementById("debug-dc-status");
+    const debugLog = document.getElementById("debug-log");
+    const debugForm = document.getElementById(
+        "debug-form",
+    ) as HTMLFormElement | null;
+    const debugInput = document.getElementById(
+        "debug-input",
+    ) as HTMLInputElement | null;
+    const debugSendBtn = document.getElementById(
+        "debug-send-btn",
+    ) as HTMLButtonElement | null;
+
+    export function appendDebugLog(
+        sender: "me" | "peer" | "system",
+        text: string,
+    ) {
+        if (!debugLog) return;
+        const line = document.createElement("div");
+        line.className = `debug-line debug-${sender}`;
+        const prefix =
+            sender === "me" ? "You: " : sender === "peer" ? "Peer: " : "[sys] ";
+        line.textContent = `${prefix}${text}`;
+        debugLog.appendChild(line);
+        debugLog.scrollTop = debugLog.scrollHeight;
+    }
+
+    export function setDebugChannelState(isOpen: boolean) {
+        if (debugDcStatus) {
+            debugDcStatus.textContent = isOpen ? "open" : "closed";
+            debugDcStatus.classList.toggle("status-open", isOpen);
+        }
+        if (debugInput) debugInput.disabled = !isOpen;
+        if (debugSendBtn) debugSendBtn.disabled = !isOpen;
+    }
+
+    // Attach to window so room.astro can dispatch events
+    (window as any).__dootDebug = {
+        appendLog: appendDebugLog,
+        setChannelState: setDebugChannelState,
+    };
+
+    debugForm?.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const text = debugInput?.value.trim();
+        if (!text) return;
+        const sent = sendDataMessage(text);
+        if (sent) {
+            appendDebugLog("me", text);
+            if (debugInput) debugInput.value = "";
+        } else {
+            appendDebugLog("system", "Failed to send: DataChannel not open.");
+        }
+    });
+</script>
+
+<style>
+    .sidebar-column {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    @media (max-width: 720px) {
+        .sidebar-column {
+            display: none;
+        }
+    }
+
+    .panel-title {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: var(--text-muted);
+        font-family: var(--font-mono);
+        text-transform: uppercase;
+    }
+
+    .debug-panel {
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: 10px;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .debug-panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .debug-status-pill {
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--text-muted);
+        text-transform: uppercase;
+    }
+
+    .debug-status-pill.status-open {
+        background: rgba(52, 211, 153, 0.15);
+        color: #34d399;
+    }
+
+    .debug-log {
+        height: 130px;
+        overflow-y: auto;
+        background: var(--bg-input);
+        border: 1px solid var(--border-subtle);
+        border-radius: 6px;
+        padding: 8px;
+        font-size: 11px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .debug-form {
+        display: flex;
+        gap: 6px;
+    }
+
+    .debug-input {
+        flex: 1;
+        padding: 7px 10px;
+        font-size: 12px;
+        background: var(--bg-input);
+        border: 1px solid var(--border-subtle);
+        border-radius: 6px;
+        color: var(--text-main);
+    }
+
+    .debug-btn {
+        width: auto;
+        padding: 7px 14px;
+        font-size: 12px;
+        border-radius: 6px;
+        font-weight: 700;
+        cursor: pointer;
+        border: none;
+        background-color: var(--accent-primary);
+        color: var(--text-on-accent);
+    }
+
+    .debug-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+</style>

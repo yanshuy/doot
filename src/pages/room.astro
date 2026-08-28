@@ -1,0 +1,321 @@
+---
+import Layout from "../layouts/Layout.astro";
+import DootLogo from "../components/DootLogo.astro";
+import SendPanel from "../components/SendPanel.astro";
+import ReceivePanel from "../components/ReceivePanel.astro";
+import DebugChat from "../components/DebugChat.astro";
+---
+
+<Layout>
+    <div class="room-container">
+        <header class="header">
+            <a href="/" class="brand">
+                <DootLogo />
+                <span class="brand-name">doot</span>
+            </a>
+            <span class="room-badge mono-font"
+                >room: <strong id="room-name">—</strong></span
+            >
+        </header>
+
+        <div class="mobile-peer">
+            <p id="mobile-peer-label" class="mobile-peer-label">
+                Waiting for someone...
+            </p>
+        </div>
+
+        <div class="tab-nav">
+            <button id="tab-btn-send" class="tab-btn active">
+                <span>Send</span>
+            </button>
+            <button id="tab-btn-receive" class="tab-btn">
+                <span>Receive</span>
+            </button>
+        </div>
+
+        <main class="room-main">
+            <div class="tabs-column">
+                <div id="tab-pane-send" class="tab-pane">
+                    <SendPanel />
+                </div>
+                <div id="tab-pane-receive" class="tab-pane" hidden>
+                    <ReceivePanel />
+                </div>
+            </div>
+
+            <aside class="peer-panel">
+                <h2 class="panel-title">Peer</h2>
+                <p id="peer-name" class="peer-name">Waiting for someone...</p>
+            </aside>
+
+            <!-- Right Column: Debug Chat Component -->
+            <div class="sidebar-wrapper">
+                <!-- <DebugChat /> -->
+            </div>
+        </main>
+    </div>
+</Layout>
+
+<script>
+    import {
+        initWebRTC,
+        type FileMetadata,
+        type TransferProgress,
+    } from "../transfer";
+
+    // Room info
+    const params = new URLSearchParams(window.location.search);
+    const roomName = params.get("room") || decodeURIComponent(window.location.search.slice(1)) || "unknown-room";
+    const roomNameEl = document.getElementById("room-name");
+    if (roomNameEl) roomNameEl.textContent = roomName;
+
+    // Peer info
+    const peerName = document.getElementById("peer-name");
+    const mobilePeerLabel = document.getElementById("mobile-peer-label");
+
+    // Tab Navigation Logic
+    const tabBtnSend = document.getElementById("tab-btn-send");
+    const tabBtnReceive = document.getElementById("tab-btn-receive");
+    const tabPaneSend = document.getElementById("tab-pane-send");
+    const tabPaneReceive = document.getElementById("tab-pane-receive");
+
+    function setActiveTab(tab: "send" | "receive") {
+        const isSend = tab === "send";
+        tabBtnSend?.classList.toggle("active", isSend);
+        tabBtnReceive?.classList.toggle("active", !isSend);
+
+        if (tabPaneSend) tabPaneSend.hidden = !isSend;
+        if (tabPaneReceive) tabPaneReceive.hidden = isSend;
+    }
+
+    tabBtnSend?.addEventListener("click", () => setActiveTab("send"));
+    tabBtnReceive?.addEventListener("click", () => setActiveTab("receive"));
+
+    function updatePeerUI(peerId: string | null) {
+        if (!peerId) {
+            if (peerName) peerName.textContent = "Waiting for someone...";
+            if (mobilePeerLabel)
+                mobilePeerLabel.innerHTML = `Waiting for someone...`;
+            return;
+        }
+
+        const formattedDesktop = `${peerId.slice(0, 8)}`;
+        if (peerName) peerName.textContent = formattedDesktop;
+
+        if (mobilePeerLabel) {
+            mobilePeerLabel.innerHTML = `<span style="color: var(--text-primary); margin-right: 5px;">Peer</span> <span class="peer-id-val">${peerId.slice(0, 8)}</span>`;
+        }
+    }
+
+    let activePeerId: string | null = null;
+    initWebRTC(roomName, {
+        onPeerJoined: (peerId) => {
+            activePeerId = peerId;
+            updatePeerUI(peerId);
+            (window as any).__dootDebug?.appendLog(
+                "system",
+                `Peer joined: ${peerId.slice(0, 8)}...`,
+            );
+        },
+        onPeerLeft: (peerId) => {
+            if (activePeerId === peerId) {
+                activePeerId = null;
+                updatePeerUI(null);
+                (window as any).__dootDebug?.appendLog(
+                    "system",
+                    `Peer left: ${peerId.slice(0, 8)}...`,
+                );
+            }
+        },
+        onChannelState: (isOpen) => {
+            (window as any).__dootDebug?.setChannelState(isOpen);
+            if (activePeerId) updatePeerUI(activePeerId);
+            (window as any).__dootDebug?.appendLog(
+                "system",
+                `DataChannel is now ${isOpen ? "OPEN" : "CLOSED"}`,
+            );
+        },
+        onMessage: (msg) => {
+            (window as any).__dootDebug?.appendLog("peer", msg);
+        },
+        onRemoteManifest: (remoteFiles: FileMetadata[]) => {
+            (window as any).__dootReceive?.renderRemoteFiles(remoteFiles);
+        },
+        onTransferProgress: (progress: TransferProgress) => {
+            if (progress.direction === "receiving") {
+                (window as any).__dootReceive?.updateTransferProgressBar(progress);
+            } else {
+                (window as any).__dootSend?.updateSenderProgressBar(progress);
+            }
+        },
+    });
+</script>
+
+<style>
+    .room-container {
+        height: 100svh;
+        max-height: 100svh;
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 24px 20px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    @media (max-width: 720px) {
+        .room-container {
+            padding: 16px;
+            overflow-y: auto;
+        }
+    }
+
+    .room-badge {
+        font-size: 13px;
+        color: var(--text-muted);
+    }
+    .room-badge strong {
+        color: var(--accent-text);
+    }
+
+    .room-main {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 1fr 240px;
+        gap: 24px;
+        padding-block-start: 1rem;
+        min-height: 0;
+    }
+
+    @media (max-width: 720px) {
+        .room-main {
+            grid-template-columns: 1fr;
+            gap: 14px;
+            padding-top: 16px;
+            display: flex;
+            flex-direction: column;
+        }
+    }
+
+    .mobile-peer {
+        display: none;
+    }
+
+    @media (max-width: 720px) {
+        .mobile-peer {
+            display: block;
+            margin-left: auto;
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            width: fit-content;
+            padding: 8px 14px;
+            border-radius: 8px;
+            margin-block-start: 16px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .mobile-peer-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 13px;
+            color: var(--accent-text);
+            font-weight: 500;
+        }
+
+        .mobile-peer-label .peer-id-val {
+            color: var(--accent-text);
+            font-weight: 700;
+        }
+
+        .peer-panel {
+            display: none;
+        }
+    }
+
+    .tabs-column {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        min-height: 0;
+        flex: 1;
+    }
+
+    .tab-nav {
+        margin-block-start: 18px;
+        display: flex;
+        padding: 4px;
+        border-radius: 8px;
+        width: fit-content;
+    }
+
+    .tab-btn {
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        padding: 0.5rem;
+        color: var(--text-secondary);
+
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        transition:
+            color 0.15s ease,
+            background-color 0.15s ease;
+    }
+
+    .tab-btn:hover {
+        color: var(--text-primary);
+    }
+
+    .tab-btn.active {
+        text-decoration: underline;
+        color: var(--text-primary);
+        color: var(--accent-text);
+    }
+
+    .tab-pane {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+    }
+
+    .sidebar-wrapper {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .peer-panel {
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: 10px;
+        padding: 18px;
+        max-width: 280px;
+        height: fit-content;
+        box-shadow: var(--shadow-sm);
+    }
+
+    @media (max-width: 720px) {
+        .peer-panel {
+            order: -1;
+        }
+    }
+
+    .panel-title {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: var(--text-muted);
+        font-family: var(--font-mono);
+        text-transform: uppercase;
+        margin-bottom: 14px;
+    }
+
+    .peer-name {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--accent-text);
+    }
+</style>

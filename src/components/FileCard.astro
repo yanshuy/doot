@@ -1,0 +1,443 @@
+---
+interface Props {
+    mode?: "send" | "receive";
+}
+
+const { mode = "send" } = Astro.props;
+---
+
+<template
+    id={mode === "send" ? "file-card-template" : "remote-file-card-template"}
+>
+    <div class="file-card file-row">
+        <!-- Desktop Header: Icon on left, Actions & Progress on right -->
+        <div class="desktop-header">
+            <div class="icon-wrap">
+                <iconify-icon class="file-icon"></iconify-icon>
+            </div>
+
+            {
+                mode === "send" ? (
+                    <div class="file-action-container">
+                        <!-- 1. Sender Delete Button -->
+                        <button
+                            class="file-remove action-btn"
+                            aria-label="Delete file"
+                            title="Remove file"
+                        >
+                            <iconify-icon icon="mdi:minus-circle-outline" />
+                        </button>
+                        <!-- 2. Sender Progress & Stop Trigger -->
+                        <div class="progress-action-wrap" hidden>
+                            <button
+                                class="file-cancel-btn action-btn cancel-btn"
+                                aria-label="Cancel transfer"
+                                title="Cancel transfer"
+                            >
+                                <svg class="action-progress-svg" viewBox="0 0 36 36">
+                                    <circle class="circle-bg" cx="18" cy="18" r="15" />
+                                    <circle
+                                        class="circle-fill"
+                                        cx="18"
+                                        cy="18"
+                                        r="15"
+                                        stroke-dasharray="0, 100"
+                                    />
+                                </svg>
+                                <iconify-icon icon="mdi:stop" class="stop-icon" />
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <div class="file-action-container">
+                        <button
+                            class="file-download-btn action-btn accept-btn"
+                            aria-label="Accept file"
+                            title="Accept & Download"
+                        >
+                            <iconify-icon icon="mdi:check-circle-outline" class="accept-icon" />
+                        </button>
+                        <div class="progress-action-wrap" hidden>
+                            <button
+                                class="file-cancel-btn action-btn cancel-btn"
+                                aria-label="Cancel transfer"
+                                title="Cancel transfer"
+                            >
+                                <svg class="action-progress-svg" viewBox="0 0 36 36">
+                                    <circle class="circle-bg" cx="18" cy="18" r="15" />
+                                    <circle
+                                        class="circle-fill"
+                                        cx="18"
+                                        cy="18"
+                                        r="15"
+                                        stroke-dasharray="0, 100"
+                                    />
+                                </svg>
+                                <iconify-icon icon="mdi:close" class="stop-icon" />
+                            </button>
+                        </div>
+                        <button
+                            class="file-save-btn action-btn save-btn"
+                            aria-label="Save file"
+                            title="Save to device"
+                            hidden
+                        >
+                            <iconify-icon icon="mdi:tray-arrow-down" />
+                        </button>
+                    </div>
+                )
+            }
+        </div>
+
+        <!-- Mobile Layout: Left Icon Group -->
+        <div class="mobile-icon-wrap">
+            <div class="icon-wrap">
+                <iconify-icon class="file-icon"></iconify-icon>
+            </div>
+        </div>
+
+        <!-- File Meta Information -->
+        <div class="file-card-body">
+            <span class="file-name"></span>
+            <div class="file-card-meta">
+                <span class="file-type-pill mono-font"></span>
+                <span class="file-size mono-font"></span>
+            </div>
+        </div>
+
+        <!-- Mobile Layout: Right Action Group -->
+        <div class="mobile-action-wrap">
+            {
+                mode === "send" ? (
+                    <div class="file-action-container">
+                        <button
+                            class="file-remove action-btn"
+                            aria-label="Delete file"
+                            title="Remove file"
+                        >
+                            <iconify-icon icon="mdi:minus-circle-outline" />
+                        </button>
+                        <div class="progress-action-wrap" hidden>
+                            <button
+                                class="file-cancel-btn action-btn cancel-btn"
+                                aria-label="Cancel transfer"
+                                title="Cancel transfer"
+                            >
+                                <svg class="action-progress-svg" viewBox="0 0 36 36">
+                                    <circle class="circle-bg" cx="18" cy="18" r="15" />
+                                    <circle
+                                        class="circle-fill"
+                                        cx="18"
+                                        cy="18"
+                                        r="15"
+                                        stroke-dasharray="0, 100"
+                                    />
+                                </svg>
+                                <iconify-icon icon="mdi:stop" class="stop-icon" />
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <div class="file-action-container">
+                        <button
+                            class="file-download-btn action-btn accept-btn"
+                            aria-label="Accept file"
+                            title="Accept & Download"
+                        >
+                            <iconify-icon icon="mdi:check-circle-outline" class="accept-icon" />
+                        </button>
+                        <div class="progress-action-wrap" hidden>
+                            <button
+                                class="file-cancel-btn action-btn cancel-btn"
+                                aria-label="Cancel transfer"
+                                title="Cancel transfer"
+                            >
+                                <svg class="action-progress-svg" viewBox="0 0 36 36">
+                                    <circle class="circle-bg" cx="18" cy="18" r="15" />
+                                    <circle
+                                        class="circle-fill"
+                                        cx="18"
+                                        cy="18"
+                                        r="15"
+                                        stroke-dasharray="0, 100"
+                                    />
+                                </svg>
+                                <iconify-icon icon="mdi:stop" class="stop-icon" />
+                            </button>
+                        </div>
+                        <button
+                            class="file-save-btn action-btn save-btn"
+                            aria-label="Save file"
+                            title="Save to device"
+                            hidden
+                        >
+                            <iconify-icon icon="mdi:tray-arrow-down" />
+                        </button>
+                    </div>
+                )
+            }
+        </div>
+    </div>
+</template>
+
+<style is:global>
+    .file-card {
+        background:
+            linear-gradient(
+                160deg,
+                rgba(255, 255, 255, 0.045) 0%,
+                rgba(255, 255, 255, 0.01) 100%
+            ),
+            var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.06),
+            0 2px 8px rgba(0, 0, 0, 0.15);
+        border-radius: 10px;
+        padding: 14px 1rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 120px;
+        transition:
+            border-color 0.15s ease,
+            background 0.15s ease,
+            box-shadow 0.15s ease;
+    }
+
+    .desktop-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+    }
+
+    .mobile-icon-wrap,
+    .mobile-action-wrap {
+        display: none;
+    }
+
+    .icon-wrap {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .file-icon {
+        font-size: 28px;
+    }
+
+    .file-card-body {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+    }
+
+    .file-name {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-primary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .file-card-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+    }
+
+    .file-type-pill {
+        font-size: 10px;
+        color: var(--text-muted);
+        letter-spacing: 0.04em;
+    }
+
+    .file-size {
+        font-size: 11px;
+        color: var(--text-secondary);
+    }
+
+    .file-action-container {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+    }
+
+    .action-btn {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: transparent;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        font-size: 20px;
+        transition: color 0.15s ease, background 0.15s ease;
+    }
+
+    .action-btn iconify-icon {
+        font-size: 20px;
+        width: 20px;
+        height: 20px;
+    }
+
+    .action-btn:hover {
+        background: linear-gradient(
+            340deg,
+            rgba(255, 255, 255, 0.09) 0%,
+            rgba(255, 255, 255, 0.03) 100%
+        );
+        color: var(--text-primary);
+    }
+
+    .file-remove {
+        color: var(--text-secondary);
+    }
+
+    .accept-btn {
+        color: var(--text-secondary);
+    }
+
+    .accept-icon {
+        font-size: 20px;
+        width: 20px;
+        height: 20px;
+    }
+
+    /* Progress & Cancel */
+    .progress-action-wrap {
+        position: relative;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .action-progress-svg {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 36px;
+        height: 36px;
+        transform: rotate(-90deg);
+        pointer-events: none;
+    }
+
+    .action-progress-svg .circle-bg {
+        fill: none;
+        stroke: rgba(255, 255, 255, 0.08);
+        stroke-width: 2.8;
+    }
+
+    .action-progress-svg .circle-fill {
+        fill: none;
+        stroke: var(--accent-primary);
+        stroke-width: 2.8;
+        stroke-linecap: round;
+        transition: stroke-dasharray 0.15s ease-out;
+    }
+
+    .cancel-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: transparent;
+        border: none;
+    }
+
+    /* Stop icon: z-index above the SVG ring, explicitly centered */
+    .cancel-btn .stop-icon {
+        position: relative;
+        z-index: 1;
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+        color: var(--accent-text);
+        transition: color 0.15s ease;
+    }
+
+    .cancel-btn:hover {
+        background: linear-gradient(
+            340deg,
+            rgba(255, 255, 255, 0.09) 0%,
+            rgba(255, 255, 255, 0.03) 100%
+        );
+    }
+
+    /* Save — green signals transfer complete */
+    .save-btn {
+        color: #34d399;
+        animation: pop-in 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .save-btn:hover {
+        background: linear-gradient(
+            340deg,
+            rgba(52, 211, 153, 0.12) 0%,
+            rgba(52, 211, 153, 0.04) 100%
+        );
+    }
+
+    @keyframes pop-in {
+        0% { transform: scale(0.6); opacity: 0; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+
+    @media (max-width: 720px) {
+        .desktop-header {
+            display: none !important;
+        }
+
+        .mobile-icon-wrap,
+        .mobile-action-wrap {
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .file-card {
+            flex-direction: row;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 16px 12px;
+            gap: 14px;
+            min-height: auto;
+        }
+
+        .file-card-body {
+            flex: 1;
+            min-width: 0;
+            gap: 2px;
+        }
+
+        .file-name {
+            font-size: 13px;
+        }
+
+        .file-card-meta {
+            justify-content: flex-start;
+            gap: 8px;
+        }
+
+        .mobile-action-wrap {
+            margin-left: auto;
+        }
+    }
+</style>
