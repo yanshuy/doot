@@ -1,0 +1,671 @@
+---
+import Layout from "../layouts/Layout.astro";
+import DootLogo from "../components/DootLogo.astro";
+---
+
+<Layout>
+    <div class="proxy-page-container">
+        <!-- Connecting Overlay for Client mode -->
+        <div id="connecting-overlay" class="connecting-overlay">
+            <div class="connecting-content">
+                <div class="logo-ping-wrap">
+                    <div class="ping-circle"></div>
+                    <DootLogo size={72} />
+                </div>
+                <div class="connecting-text-group">
+                    <h2 class="connecting-title">Establishing P2P Tunnel...</h2>
+                    <p id="connecting-status" class="connecting-status mono-font">
+                        Joining room & locating Proxy Host...
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Room Header -->
+        <header class="header">
+            <a href="/" class="brand">
+                <DootLogo />
+                <span class="brand-name">doot</span>
+            </a>
+
+            <!-- Interactive Mode Toggle / Segmented Control -->
+            <div class="role-segmented-control">
+                <button id="btn-role-proxy" type="button" class="seg-btn" title="Run as Proxy Host to share your local server">
+                    <iconify-icon icon="mdi:server-network"></iconify-icon>
+                    <span>Host (Share Server)</span>
+                </button>
+                <button id="btn-role-client" type="button" class="seg-btn" title="Run as Client to access remote tunneled app">
+                    <iconify-icon icon="mdi:cellphone-link"></iconify-icon>
+                    <span>Client (View App)</span>
+                </button>
+            </div>
+
+            <div class="header-right">
+                <span class="room-badge mono-font">
+                    room: <strong id="room-name">—</strong>
+                </span>
+            </div>
+        </header>
+
+        <!-- Client Dashboard View (Zero-Iframe Native Bridge) -->
+        <main id="client-dashboard-section" class="proxy-main" style="display: none;">
+            <section class="card launcher-card">
+                <div class="card-header">
+                    <h2 class="card-title">NATIVE P2P TUNNEL READY</h2>
+                </div>
+                <p class="launcher-desc">
+                    The peer-to-peer tunnel is active. Launch the tunneled application as a full, native browser page with zero iframes.
+                </p>
+
+                <div class="launcher-actions">
+                    <a
+                        id="btn-launch-tab"
+                        href="/tunnel/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="btn btn-primary btn-large"
+                    >
+                        <span>Launch App in Native Tab</span>
+                        <iconify-icon icon="mdi:open-in-new"></iconify-icon>
+                    </a>
+                </div>
+
+                <div class="tunnel-url-bar">
+                    <span class="url-label mono-font">DIRECT URL</span>
+                    <input
+                        id="client-tunnel-url"
+                        type="text"
+                        readonly
+                        value=""
+                        class="text-input mono-font"
+                    />
+                    <button id="btn-copy-url" type="button" class="btn btn-secondary">
+                        Copy
+                    </button>
+                </div>
+            </section>
+
+            <!-- Network Status Overview -->
+            <section class="status-grid">
+                <div class="status-box">
+                    <span class="status-label">SIGNALING</span>
+                    <span id="client-signaling-status" class="status-value mono-font">connecting...</span>
+                </div>
+
+                <div class="status-box">
+                    <span class="status-label">WEBRTC TUNNEL</span>
+                    <span id="client-webrtc-status" class="status-value mono-font">disconnected</span>
+                </div>
+
+                <div class="status-box">
+                    <span class="status-label">SERVICE WORKER</span>
+                    <span id="client-sw-status" class="status-value mono-font">active</span>
+                </div>
+
+                <div class="status-box">
+                    <span class="status-label">PEERS</span>
+                    <span id="client-peers-count" class="status-value mono-font">0 peers</span>
+                </div>
+            </section>
+
+            <!-- Request Log Table -->
+            <section class="card requests-card">
+                <div class="card-header">
+                    <h2 class="card-title">LIVE TUNNELED REQUESTS LOG</h2>
+                </div>
+                <div class="table-wrap">
+                    <table id="client-requests" class="requests-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>METHOD</th>
+                                <th>PATH</th>
+                                <th>HEADERS</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Dynamic request log rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <!-- Dashboard View for Proxy Host (Server Mode) -->
+        <main id="host-dashboard-section" class="proxy-main" style="display: none;">
+            <!-- Target Host Configuration -->
+            <section class="card host-config-card">
+                <div class="card-header">
+                    <h2 class="card-title">PROXY HOST CONFIGURATION</h2>
+                </div>
+
+                <div class="input-group">
+                    <label for="target-host-input" class="input-label">LOCAL TARGET ADDRESS</label>
+                    <input
+                        id="target-host-input"
+                        type="text"
+                        value="http://localhost:4321"
+                        class="text-input mono-font"
+                        placeholder="e.g. http://localhost:4321"
+                    />
+                </div>
+            </section>
+
+            <!-- Network Status Overview -->
+            <section class="status-grid">
+                <div class="status-box">
+                    <span class="status-label">SIGNALING</span>
+                    <span id="signaling-status" class="status-value mono-font">connecting...</span>
+                </div>
+
+                <div class="status-box">
+                    <span class="status-label">WEBRTC</span>
+                    <span id="webrtc-status" class="status-value mono-font">disconnected</span>
+                </div>
+
+                <div class="status-box">
+                    <span class="status-label">SERVICE WORKER</span>
+                    <span id="sw-status" class="status-value mono-font">initializing</span>
+                </div>
+
+                <div class="status-box">
+                    <span class="status-label">PEERS IN ROOM</span>
+                    <span id="peers-count" class="status-value mono-font">0 peers</span>
+                </div>
+            </section>
+
+            <!-- Incoming Requests Log -->
+            <section class="card requests-card">
+                <div class="card-header">
+                    <h2 class="card-title">INCOMING P2P REQUESTS LOG</h2>
+                </div>
+                <div class="table-wrap">
+                    <table id="requests" class="requests-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>METHOD</th>
+                                <th>PATH</th>
+                                <th>HEADERS</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Dynamic request log rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+</Layout>
+
+<script>
+    import { P2PProxyManager, type PeerRole } from "../js/tunnel";
+
+    const params = new URLSearchParams(window.location.search);
+    const roomName =
+        params.get("name") ||
+        params.get("room") ||
+        decodeURIComponent(window.location.search.slice(1)) ||
+        "default-proxy";
+
+    const roomNameEl = document.getElementById("room-name");
+    if (roomNameEl) roomNameEl.textContent = roomName;
+
+    const connectingOverlay = document.getElementById("connecting-overlay");
+    const connectingStatus = document.getElementById("connecting-status");
+    const roleBadge = document.getElementById("role-badge");
+    const clientDashboardSection = document.getElementById("client-dashboard-section");
+    const hostDashboardSection = document.getElementById("host-dashboard-section");
+
+    const signalingStatusEl = document.getElementById("signaling-status");
+    const webrtcStatusEl = document.getElementById("webrtc-status");
+    const swStatusEl = document.getElementById("sw-status");
+    const peersCountEl = document.getElementById("peers-count");
+    const requestsEl = document.getElementById("requests");
+
+    const clientSignalingStatus = document.getElementById("client-signaling-status");
+    const clientWebrtcStatus = document.getElementById("client-webrtc-status");
+    const clientSwStatus = document.getElementById("client-sw-status");
+    const clientPeersCount = document.getElementById("client-peers-count");
+    const clientRequests = document.getElementById("client-requests");
+
+    const targetHostInput = document.getElementById("target-host-input") as HTMLInputElement | null;
+    const clientTunnelUrl = document.getElementById("client-tunnel-url") as HTMLInputElement | null;
+    const btnCopyUrl = document.getElementById("btn-copy-url");
+
+    if (clientTunnelUrl) {
+        clientTunnelUrl.value = `${window.location.origin}/tunnel/`;
+    }
+
+    btnCopyUrl?.addEventListener("click", () => {
+        if (clientTunnelUrl) {
+            navigator.clipboard.writeText(clientTunnelUrl.value);
+            btnCopyUrl.textContent = "Copied!";
+            setTimeout(() => {
+                btnCopyUrl.textContent = "Copy";
+            }, 2000);
+        }
+    });
+
+    const btnRoleProxy = document.getElementById("btn-role-proxy");
+    const btnRoleClient = document.getElementById("btn-role-client");
+
+    function updateRoleUI(role: PeerRole) {
+        if (btnRoleProxy) btnRoleProxy.classList.toggle("active", role === "proxy");
+        if (btnRoleClient) btnRoleClient.classList.toggle("active", role === "client");
+
+        if (role === "proxy") {
+            if (connectingOverlay) connectingOverlay.style.display = "none";
+            if (clientDashboardSection) clientDashboardSection.style.display = "none";
+            if (hostDashboardSection) hostDashboardSection.style.display = "flex";
+        } else {
+            if (hostDashboardSection) hostDashboardSection.style.display = "none";
+            if (clientDashboardSection) clientDashboardSection.style.display = "flex";
+        }
+    }
+
+    const manager = new P2PProxyManager(roomName, "client", {
+        autoRole: true,
+        targetHost: targetHostInput?.value || "http://localhost:4321",
+        swStatusEl: clientSwStatus || swStatusEl,
+        requestsEl: requestsEl || clientRequests,
+        callbacks: {
+            onSignalingState: (state) => {
+                if (signalingStatusEl) signalingStatusEl.textContent = state;
+                if (clientSignalingStatus) clientSignalingStatus.textContent = state;
+                if (connectingStatus) connectingStatus.textContent = `Signaling: ${state}...`;
+            },
+            onWebRTCState: (state) => {
+                if (webrtcStatusEl) webrtcStatusEl.textContent = state;
+                if (clientWebrtcStatus) clientWebrtcStatus.textContent = state;
+                if (connectingStatus) connectingStatus.textContent = `WebRTC DataChannel: ${state}...`;
+            },
+            onRoleAssigned: (role) => {
+                updateRoleUI(role);
+            },
+            onTunnelReady: () => {
+                if (connectingOverlay) connectingOverlay.style.display = "none";
+            },
+            onPeersUpdated: (peers) => {
+                const proxyCount = peers.filter((p) => p.role === "proxy").length;
+                const peerStr = `${peers.length} peer${peers.length !== 1 ? "s" : ""} (${proxyCount} host)`;
+                if (peersCountEl) peersCountEl.textContent = peerStr;
+                if (clientPeersCount) clientPeersCount.textContent = peerStr;
+            },
+        },
+    });
+
+    btnRoleProxy?.addEventListener("click", () => {
+        manager.setRole("proxy");
+        updateRoleUI("proxy");
+    });
+
+    btnRoleClient?.addEventListener("click", () => {
+        manager.setRole("client");
+        updateRoleUI("client");
+    });
+
+    manager.connect();
+
+    targetHostInput?.addEventListener("change", () => {
+        if (targetHostInput.value) {
+            manager.setTargetHost(targetHostInput.value.trim());
+        }
+    });
+</script>
+
+<style>
+    .proxy-page-container {
+        min-height: 100vh;
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 24px 20px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Header Styling */
+    .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border-subtle);
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .role-segmented-control {
+        display: flex;
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        padding: 3px;
+        gap: 4px;
+    }
+
+    .seg-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-family: var(--font-sans);
+        font-size: 12px;
+        font-weight: 500;
+        padding: 6px 12px;
+        border-radius: 6px;
+        border: none;
+        background: transparent;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .seg-btn iconify-icon {
+        font-size: 15px;
+    }
+
+    .seg-btn:hover {
+        color: var(--text-primary);
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .seg-btn.active {
+        background-color: var(--accent-primary, #6366f1);
+        color: #ffffff;
+        font-weight: 600;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+
+    .header-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .role-badge {
+        font-size: 11px;
+        padding: 4px 8px;
+        border-radius: 6px;
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        color: var(--text-muted);
+    }
+
+    .role-badge.proxy {
+        color: var(--accent-text);
+        border-color: var(--accent-primary);
+    }
+
+    .role-badge.client {
+        color: #38bdf8;
+        border-color: #0284c7;
+    }
+
+    .room-badge {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .room-badge strong {
+        color: var(--accent-text);
+    }
+
+    /* Connecting Overlay with Logo & Ping Animation */
+    .connecting-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 999;
+        background-color: var(--bg-surface-elevated, #0f111a);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .connecting-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 28px;
+        text-align: center;
+    }
+
+    .logo-ping-wrap {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 140px;
+        height: 140px;
+    }
+
+    .ping-circle {
+        position: absolute;
+        width: 90px;
+        height: 90px;
+        border-radius: 50%;
+        background-color: var(--accent-primary, #6366f1);
+        opacity: 0.45;
+        animation: pingAnimation 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+
+    @keyframes pingAnimation {
+        75%,
+        100% {
+            transform: scale(2.4);
+            opacity: 0;
+        }
+    }
+
+    .connecting-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 6px;
+    }
+
+    .connecting-status {
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    /* Dashboard Layout */
+    .proxy-main {
+        margin-top: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .card {
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: 10px;
+        padding: 22px;
+    }
+
+    .card-header {
+        margin-bottom: 12px;
+    }
+
+    .card-title {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: var(--text-muted);
+        font-family: var(--font-mono);
+        text-transform: uppercase;
+    }
+
+    /* Launcher Card */
+    .launcher-card {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .launcher-desc {
+        font-size: 13px;
+        color: var(--text-secondary);
+        line-height: 1.5;
+        margin: 0;
+    }
+
+    .launcher-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .btn-large {
+        padding: 14px 24px;
+        font-size: 15px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        text-decoration: none;
+    }
+
+    .tunnel-url-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--bg-input);
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        padding: 6px 10px;
+    }
+
+    .url-label {
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--text-muted);
+        white-space: nowrap;
+    }
+
+    .input-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .input-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        font-family: var(--font-mono);
+    }
+
+    .text-input {
+        width: 100%;
+        background-color: var(--bg-input);
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        padding: 10px 12px;
+        color: var(--text-primary);
+        font-size: 13px;
+        outline: none;
+    }
+
+    .text-input:focus {
+        border-color: var(--accent-primary);
+    }
+
+    /* Status Grid */
+    .status-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+    }
+
+    @media (max-width: 720px) {
+        .status-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    .status-box {
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .status-label {
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--text-muted);
+        letter-spacing: 0.05em;
+    }
+
+    .status-value {
+        font-size: 12px;
+        color: var(--accent-text);
+        font-weight: 600;
+    }
+
+    /* Buttons */
+    .btn {
+        padding: 10px 16px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        white-space: nowrap;
+        transition: background-color 0.15s ease;
+    }
+
+    .btn-primary {
+        background-color: var(--accent-primary);
+        color: var(--text-on-accent);
+    }
+
+    .btn-primary:hover {
+        background-color: var(--accent-primary-hover);
+    }
+
+    .btn-secondary {
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        color: var(--text-primary);
+    }
+
+    .btn-secondary:hover {
+        background-color: var(--bg-surface-elevated);
+    }
+
+    /* Table */
+    .table-wrap {
+        overflow-x: auto;
+    }
+
+    .requests-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+        text-align: left;
+    }
+
+    .requests-table th {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--text-muted);
+        border-bottom: 1px solid var(--border-subtle);
+        padding: 8px 10px;
+    }
+
+    .requests-table td {
+        padding: 10px;
+        border-bottom: 1px solid var(--border-subtle);
+        color: var(--text-secondary);
+    }
+
+    .mono-font {
+        font-family: var(--font-mono);
+    }
+</style>
