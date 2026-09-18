@@ -29,7 +29,10 @@ const sender = new SenderManager();
 const receiver = new ReceiverManager();
 let events: WebRTCEvents = {};
 
-export function initWebRTC(roomId: string, eventHandlers: WebRTCEvents = {}): ConnectionManager {
+export function initWebRTC(
+  roomId: string,
+  eventHandlers: WebRTCEvents = {},
+): ConnectionManager {
   events = eventHandlers;
 
   connection = new ConnectionManager(PEER_ID, roomId, {
@@ -82,7 +85,7 @@ async function handleControl(msg: ControlMessage | string): Promise<void> {
           msg.offset || 0,
           connection.getTransferChannel(),
           (ctrl) => connection?.sendControl(ctrl),
-          (p) => events.onTransferProgress?.(p)
+          (p) => events.onTransferProgress?.(p),
         );
       }
       break;
@@ -94,7 +97,7 @@ async function handleControl(msg: ControlMessage | string): Promise<void> {
         msg.name,
         msg.size,
         msg.mime,
-        msg.offset || 0
+        msg.offset || 0,
       );
       if (ok) {
         connection?.sendControl({

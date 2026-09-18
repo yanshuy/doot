@@ -22,11 +22,16 @@ export class ConnectionManager {
   private roomId: string;
   private callbacks: ConnectionCallbacks;
   private socket: WebSocket | null = null;
-  private peerConnection: { peer_id: string; conn: RTCPeerConnection } | null = null;
+  private peerConnection: { peer_id: string; conn: RTCPeerConnection } | null =
+    null;
   private controlChannel: RTCDataChannel | null = null;
   private transferChannel: RTCDataChannel | null = null;
 
-  constructor(peerId: string, roomId: string, callbacks: ConnectionCallbacks = {}) {
+  constructor(
+    peerId: string,
+    roomId: string,
+    callbacks: ConnectionCallbacks = {},
+  ) {
     this.peerId = peerId;
     this.roomId = roomId;
     this.callbacks = callbacks;
@@ -94,7 +99,11 @@ export class ConnectionManager {
     switch (message.type) {
       case "room_joined":
         if (message.peers.length > 0) {
-          this.callbacks.onPeerJoined?.(message.peers[0]);
+          const first = message.peers[0];
+          const peerId = typeof first === "string" ? first : first?.peer_id;
+          if (peerId) {
+            this.callbacks.onPeerJoined?.(peerId);
+          }
         }
         break;
 
@@ -109,9 +118,12 @@ export class ConnectionManager {
         break;
 
       case "peer_answer":
-        if (this.peerConnection && this.peerConnection.peer_id === message.from_peer) {
+        if (
+          this.peerConnection &&
+          this.peerConnection.peer_id === message.from_peer
+        ) {
           await this.peerConnection.conn.setRemoteDescription(
-            new RTCSessionDescription({ type: "answer", sdp: message.sdp })
+            new RTCSessionDescription({ type: "answer", sdp: message.sdp }),
           );
         }
         break;
@@ -119,7 +131,9 @@ export class ConnectionManager {
       case "peer_ice_candidate":
         if (this.peerConnection) {
           try {
-            await this.peerConnection.conn.addIceCandidate(new RTCIceCandidate(message.candidate));
+            await this.peerConnection.conn.addIceCandidate(
+              new RTCIceCandidate(message.candidate),
+            );
           } catch (err) {
             console.error("[WebRTC] ICE candidate error:", err);
           }
@@ -133,7 +147,10 @@ export class ConnectionManager {
     }
   }
 
-  private createPeerConnection(remotePeerId: string): { peer_id: string; conn: RTCPeerConnection } {
+  private createPeerConnection(remotePeerId: string): {
+    peer_id: string;
+    conn: RTCPeerConnection;
+  } {
     if (this.peerConnection) return this.peerConnection;
 
     const pc = new RTCPeerConnection({
@@ -147,7 +164,7 @@ export class ConnectionManager {
         this.sendSignal({
           type: "ice_candidate",
           peer_id: remotePeerId,
-          candidate: event.candidate,
+          candidate: event.candidate.toJSON(),
         });
       }
     };
@@ -179,7 +196,10 @@ export class ConnectionManager {
     });
   }
 
-  private async handleReceiverHandshake(fromPeer: string, sdp: string): Promise<void> {
+  private async handleReceiverHandshake(
+    fromPeer: string,
+    sdp: string,
+  ): Promise<void> {
     const peerConn = this.createPeerConnection(fromPeer);
     const pc = peerConn.conn;
 
@@ -191,7 +211,9 @@ export class ConnectionManager {
       }
     };
 
-    await pc.setRemoteDescription(new RTCSessionDescription({ type: "offer", sdp }));
+    await pc.setRemoteDescription(
+      new RTCSessionDescription({ type: "offer", sdp }),
+    );
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 

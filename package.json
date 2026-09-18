@@ -7,6 +7,10 @@
   },
   "scripts": {
     "dev": "astro dev",
+    "dev:astro": "astro dev",
+    "caddy": "caddy run",
+    "caddy:start": "caddy start",
+    "caddy:stop": "caddy stop",
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro"
@@ -16,5 +20,10 @@
   },
   "allowScripts": {
     "esbuild": true
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "concurrently": "^10.0.5",
+    "typescript": "^7.0.2"
   }
 }

@@ -35,7 +35,11 @@ All commands are run from the root of the project, from a terminal:
 | Command                   | Action                                           |
 | :------------------------ | :----------------------------------------------- |
 | `pnpm install`             | Installs dependencies                            |
-| `pnpm dev`             | Starts local dev server at `localhost:4321`      |
+| `pnpm dev`             | Starts Astro dev server and Caddy HTTPS proxy    |
+| `pnpm dev:astro`       | Starts local Astro dev server only (`localhost:4321`) |
+| `pnpm caddy`           | Runs Caddy reverse proxy in foreground (HTTPS)   |
+| `pnpm caddy:start`     | Starts Caddy in background (HTTPS at `localhost`) |
+| `pnpm caddy:stop`      | Stops background Caddy server                    |
 | `pnpm build`           | Build your production site to `./dist/`          |
 | `pnpm preview`         | Preview your build locally, before deploying     |
 | `pnpm astro ...`       | Run CLI commands like `astro add`, `astro check` |

@@ -10,7 +10,14 @@ export type ControlMessage =
   | { type: "manifest_offer"; files: FileMetadata[] }
   | { type: "manifest_revoke"; fileIds: string[] }
   | { type: "request_file"; fileId: string; offset?: number }
-  | { type: "file_start"; fileId: string; name: string; size: number; mime: string; offset?: number }
+  | {
+    type: "file_start";
+    fileId: string;
+    name: string;
+    size: number;
+    mime: string;
+    offset?: number;
+  }
   | { type: "file_ready"; fileId: string }
   | { type: "file_end"; fileId: string }
   | { type: "transfer_cancel"; fileId: string }
@@ -25,9 +32,11 @@ export interface TransferProgress {
   speedBps: number; // Bytes per second
   direction: "sending" | "receiving";
 }
-export const SIGNAL_SERVER_URL = import.meta.env.PUBLIC_SIGNAL_URL
-  ? `wss://${import.meta.env.PUBLIC_SIGNAL_URL}/yo`
+
+export const SIGNAL_SERVER_URL = import.meta.env.PUBLIC_SIGNAL_SERVER
+  ? `wss://${import.meta.env.PUBLIC_SIGNAL_SERVER}/yo`
   : "ws://localhost:3333/yo";
+
 export const STUN_SERVERS = [
   "stun:stun.l.google.com:19302",
   "stun:stun1.l.google.com:19302",
@@ -36,15 +45,25 @@ export const STUN_SERVERS = [
   "stun:stun4.l.google.com:19302",
 ];
 
+export interface PeerInfo {
+  peer_id: string;
+  metadata?: {
+    role?: "proxy" | "client";
+    name?: string;
+    target_host?: string;
+    [key: string]: any;
+  };
+}
+
 export type Signal =
-  | { type: "room_joined"; room_id: string; peers: string[] }
-  | { type: "peer_joined"; room_id: string; peer_id: string }
+  | { type: "room_joined"; room_id: string; peers: (string | PeerInfo)[] }
+  | { type: "peer_joined"; room_id: string; peer_id: string; metadata?: any }
+  | { type: "peer_metadata_updated"; room_id: string; peer_id: string; metadata: any }
   | { type: "peer_left"; room_id: string; peer_id: string }
   | { type: "peer_offer"; from_peer: string; sdp: string }
   | { type: "peer_answer"; from_peer: string; sdp: string }
   | { type: "peer_ice_candidate"; from_peer: string; candidate: any }
   | { type: "error"; code: number };
-
 
 export function isValidSignal(json: any): json is Signal {
   if (!json || typeof json !== "object" || typeof json.type !== "string") {
@@ -57,7 +76,9 @@ export function isValidSignal(json: any): json is Signal {
 
     case "peer_joined":
     case "peer_left":
-      return typeof json.room_id === "string" && typeof json.peer_id === "string";
+      return (
+        typeof json.room_id === "string" && typeof json.peer_id === "string"
+      );
 
     case "peer_offer":
     case "peer_answer":

@@ -25,7 +25,7 @@ import DootLogo from "../components/DootLogo.astro";
 			<div class="dialog-content">
 				<div class="dialog-header">
 					<div class="dialog-title-wrap">
-						<h2 class="dialog-title">Direct P2P Transfer</h2>
+						<h2 class="dialog-title">Direct P2P & Proxy</h2>
 					</div>
 					<button
 						id="dialog-close-btn"
@@ -39,44 +39,36 @@ import DootLogo from "../components/DootLogo.astro";
 				<div class="dialog-body">
 					<div class="info-item">
 						<div class="info-icon">
-							<iconify-icon icon="mdi:shield-lock-outline"
-							></iconify-icon>
+							<iconify-icon icon="mdi:shield-lock-outline"></iconify-icon>
 						</div>
 						<div class="info-text">
-							<strong>End-to-End Direct</strong>
+							<strong>End-to-End Direct P2P</strong>
 							<p>
-								Files stream directly between devices over
-								encrypted peer channels without intermediary
-								servers.
+								Files & HTTP streams flow directly between peers over encrypted WebRTC channels.
 							</p>
 						</div>
 					</div>
 
 					<div class="info-item">
 						<div class="info-icon">
-							<iconify-icon icon="mdi:cloud-off-outline"
-							></iconify-icon>
+							<iconify-icon icon="mdi:swap-horizontal-bold"></iconify-icon>
+						</div>
+						<div class="info-text">
+							<strong>P2P HTTP Proxy</strong>
+							<p>
+								Tunnel website HTTP requests dynamically to a local app server running on a peer machine.
+							</p>
+						</div>
+					</div>
+
+					<div class="info-item">
+						<div class="info-icon">
+							<iconify-icon icon="mdi:cloud-off-outline"></iconify-icon>
 						</div>
 						<div class="info-text">
 							<strong>Zero Cloud Storage</strong>
 							<p>
-								No file uploads, no storage caps, and zero data
-								logging. Once the transfer completes, nothing
-								remains on any server.
-							</p>
-						</div>
-					</div>
-
-					<div class="info-item">
-						<div class="info-icon">
-							<iconify-icon icon="mdi:lightning-bolt-outline"
-							></iconify-icon>
-						</div>
-						<div class="info-text">
-							<strong>Line-Speed Transfers</strong>
-							<p>
-								Saturates full local or direct network bandwidth
-								without cloud throttling.
+								No data logging, no cloud storage, and zero intermediate servers.
 							</p>
 						</div>
 					</div>
@@ -88,7 +80,7 @@ import DootLogo from "../components/DootLogo.astro";
 			<div class="hero-section">
 				<h1 class="hero-title">Join a Room</h1>
 				<p class="hero-subtitle">
-					The one who joins second is the reciever
+					Select room type to share files or tunnel HTTP requests via P2P
 				</p>
 			</div>
 
@@ -100,19 +92,29 @@ import DootLogo from "../components/DootLogo.astro";
 					method="GET"
 				>
 					<div class="input-group">
-						<label for="room-input" class="input-label"
-							>ROOM NAME</label
-						>
+						<label for="room-input" class="input-label">ROOM NAME</label>
 						<input
 							id="room-input"
-							name="room"
+							name="name"
 							type="text"
-							placeholder="e.g. swift-falcon-42"
+							placeholder="eg. dodo"
 							class="text-input mono-font"
 							spellcheck="false"
 							autocomplete="off"
 							required
 						/>
+					</div>
+
+					<div class="input-group">
+						<label class="input-label">ROOM TYPE</label>
+						<div class="mode-toggle">
+							<button type="button" id="mode-file" class="mode-btn active">
+								File Transfer
+							</button>
+							<button type="button" id="mode-proxy" class="mode-btn">
+								HTTP Proxy
+							</button>
+						</div>
 					</div>
 
 					<button
@@ -129,15 +131,12 @@ import DootLogo from "../components/DootLogo.astro";
 </Layout>
 
 <script>
-	const infoBtn = document.getElementById(
-		"info-btn",
-	) as HTMLButtonElement | null;
-	const infoDialog = document.getElementById(
-		"info-dialog",
-	) as HTMLDialogElement | null;
-	const dialogCloseBtn = document.getElementById(
-		"dialog-close-btn",
-	) as HTMLButtonElement | null;
+	const infoBtn = document.getElementById("info-btn") as HTMLButtonElement | null;
+	const infoDialog = document.getElementById("info-dialog") as HTMLDialogElement | null;
+	const dialogCloseBtn = document.getElementById("dialog-close-btn") as HTMLButtonElement | null;
+	const joinForm = document.getElementById("join-form") as HTMLFormElement | null;
+	const modeFileBtn = document.getElementById("mode-file");
+	const modeProxyBtn = document.getElementById("mode-proxy");
 
 	infoBtn?.addEventListener("click", () => {
 		infoDialog?.showModal();
@@ -151,6 +150,18 @@ import DootLogo from "../components/DootLogo.astro";
 		if (e.target === infoDialog) {
 			infoDialog.close();
 		}
+	});
+
+	modeFileBtn?.addEventListener("click", () => {
+		if (joinForm) joinForm.action = "/room";
+		modeFileBtn.classList.add("active");
+		modeProxyBtn?.classList.remove("active");
+	});
+
+	modeProxyBtn?.addEventListener("click", () => {
+		if (joinForm) joinForm.action = "/proxy";
+		modeProxyBtn.classList.add("active");
+		modeFileBtn?.classList.remove("active");
 	});
 </script>
 
@@ -224,12 +235,6 @@ import DootLogo from "../components/DootLogo.astro";
 		border-bottom: 1px solid var(--border-subtle);
 	}
 
-	.dialog-title-wrap {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-
 	.dialog-title {
 		font-size: 16px;
 		font-weight: 700;
@@ -247,9 +252,6 @@ import DootLogo from "../components/DootLogo.astro";
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		transition:
-			color 0.15s ease,
-			background-color 0.15s ease;
 	}
 
 	.dialog-close-btn:hover {
@@ -271,7 +273,6 @@ import DootLogo from "../components/DootLogo.astro";
 
 	.info-icon {
 		margin-inline-end: 8px;
-		/* background: var(--bg-surface-elevated); */
 		color: var(--accent-text);
 		display: flex;
 		align-items: center;
@@ -367,19 +368,43 @@ import DootLogo from "../components/DootLogo.astro";
 		color: var(--text-primary);
 		font-size: 14px;
 		outline: none;
-		transition:
-			border-color 0.15s ease,
-			box-shadow 0.15s ease;
+		transition: border-color 0.15s ease;
 	}
 
 	.text-input:focus {
 		border-color: var(--accent-primary);
-		box-shadow: 0 0 0 2px var(--accent-glow);
+	}
+
+	.mode-toggle {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
+		background-color: var(--bg-input);
+		border: 1px solid var(--border-subtle);
+		border-radius: 8px;
+		padding: 4px;
+	}
+
+	.mode-btn {
+		background: transparent;
+		border: none;
+		color: var(--text-secondary);
+		padding: 8px 12px;
+		font-size: 13px;
+		font-weight: 600;
+		border-radius: 6px;
+		cursor: pointer;
+		transition: color 0.15s ease, background-color 0.15s ease;
+	}
+
+	.mode-btn.active {
+		background-color: var(--bg-surface);
+		color: var(--accent-text);
+		box-shadow: var(--shadow-sm);
 	}
 
 	.mono-font {
 		font-family: var(--font-mono);
-		letter-spacing: -0.01em;
 	}
 
 	.btn {
@@ -390,7 +415,6 @@ import DootLogo from "../components/DootLogo.astro";
 		font-weight: 600;
 		cursor: pointer;
 		border: none;
-		transition: background-color 0.15s ease;
 	}
 
 	.btn-primary {
