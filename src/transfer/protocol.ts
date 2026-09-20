@@ -33,9 +33,7 @@ export interface TransferProgress {
   direction: "sending" | "receiving";
 }
 
-export const SIGNAL_SERVER_URL = import.meta.env.PUBLIC_SIGNAL_SERVER
-  ? `wss://${import.meta.env.PUBLIC_SIGNAL_SERVER}/yo`
-  : "ws://localhost:3333/yo";
+export const SIGNAL_SERVER_URL = "ws://localhost:3333/yo";
 
 export const STUN_SERVERS = [
   "stun:stun.l.google.com:19302",

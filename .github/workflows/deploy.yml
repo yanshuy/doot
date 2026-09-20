@@ -37,9 +37,6 @@ jobs:
         run: pnpm install
 
       - name: Build
-        env:
-          PUBLIC_SIGNAL_SERVER: ${{ vars.PUBLIC_SIGNAL_SERVER }}
-
         run: pnpm build
 
       - name: Upload Pages artifact

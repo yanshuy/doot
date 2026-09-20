@@ -1,6 +1,6 @@
 import { PEER_ID } from "./peerId";
 
-const SIGNAL_SERVER_ORIGIN = import.meta.env.PUBLIC_SIGNAL_SERVER;
+const SIGNAL_SERVER_ORIGIN = "localhost:3333";
 
 const proto = window.location.protocol === "https:" ? "wss" : "ws";
 export const SIGNAL_SERVER_URL = `${proto}://${SIGNAL_SERVER_ORIGIN}/yo`;
