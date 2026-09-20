@@ -1,8 +1,10 @@
 import { PEER_ID } from "./peerId";
 
-const SIGNAL_SERVER_ORIGIN = "localhost:3333";
+let proto = window.location.protocol == "https:" ? "wss" : "ws";
 
-const proto = window.location.protocol === "https:" ? "wss" : "ws";
+const SIGNAL_SERVER_ORIGIN = "localhost:3333";
+proto = "ws";
+
 export const SIGNAL_SERVER_URL = `${proto}://${SIGNAL_SERVER_ORIGIN}/yo`;
 
 export interface PeerInfo {
