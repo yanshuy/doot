@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "astro dev",
     "dev:astro": "astro dev",
-    "build:sw": "esbuild src/js/sw/sw.ts --bundle --outfile=public/sw.js --define:import.meta.env.PUBLIC_BASE_DOMAIN='\"localhost\"'",
+    "build:sw": "esbuild src/js/sw/sw.ts --bundle --outfile=public/sw.js",
     "caddy": "caddy run",
     "caddy:start": "caddy start",
     "caddy:stop": "caddy stop",
@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
+    "@types/node": "^26.6.2",
     "concurrently": "^10.0.5",
     "typescript": "^7.0.2"
   }
