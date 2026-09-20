@@ -76,7 +76,6 @@ export function createConnection(peerId: string) {
     };
 
     pc.onconnectionstatechange = () => {
-        console.log(`[Peers] Peer ${peerId} connectionState changed to:`, pc.connectionState);
         if (
             pc.connectionState === "disconnected" ||
             pc.connectionState === "failed" ||
@@ -84,7 +83,6 @@ export function createConnection(peerId: string) {
         ) {
             Peers.delete(peerId);
         } else if (pc.connectionState === "connected") {
-            console.log(`[Peers] Peer ${peerId} is fully CONNECTED via WebRTC!`);
             Peers.notifyListeners();
         }
     };
@@ -93,7 +91,16 @@ export function createConnection(peerId: string) {
 }
 
 export async function sendOffer(peerId: string): Promise<void> {
-    console.log("[Peers] Sending WebRTC offer to peer:", peerId);
+    if (currentRole !== "client") {
+        console.warn(`[Peers] Cannot send offer: current role is "${currentRole}" (only clients can initiate)`);
+        return;
+    }
+    const targetMeta = knownRoomPeers.get(peerId);
+    if (targetMeta?.role !== "proxy") {
+        console.warn(`[Peers] Cannot send offer to peer ${peerId}: target is not a proxy (role: ${targetMeta?.role})`);
+        return;
+    }
+
     const pc = createConnection(peerId);
 
     // Create initial control channel before offer to ensure m=application is in the SDP
@@ -113,7 +120,6 @@ export async function sendOffer(peerId: string): Promise<void> {
 }
 
 export async function handleOffer(fromPeer: string, sdp: string): Promise<void> {
-    console.log("[Peers] Received WebRTC offer from peer:", fromPeer);
     const pc = createConnection(fromPeer);
 
     await pc.setRemoteDescription(
@@ -126,7 +132,6 @@ export async function handleOffer(fromPeer: string, sdp: string): Promise<void> 
     }
     await pc.setLocalDescription(answer);
 
-    console.log("[Peers] Sending WebRTC answer to peer:", fromPeer);
     SS.sendSignal({
         type: "answer",
         peer_id: fromPeer,
@@ -155,12 +160,24 @@ function checkAndConnect() {
 
 export function setRole(role: Role) {
     currentRole = role;
-    console.log("[Peers] currentRole set to:", currentRole);
-    checkAndConnect();
+
+    if (currentRole === "proxy") {
+        // If becoming a proxy, close any connections to other proxy hosts
+        for (const [peerId, meta] of knownRoomPeers) {
+            if (meta?.role === "proxy") {
+                const pc = getConnection(peerId);
+                if (pc) {
+                    pc.close();
+                    Peers.delete(peerId);
+                }
+            }
+        }
+    } else if (currentRole === "client") {
+        checkAndConnect();
+    }
 }
 
 SS.on("room_joined", (msg) => {
-    console.log("[Peers] room_joined event, total peers:", msg.peers.length, "myRole:", currentRole);
     knownRoomPeers.clear();
     for (const peer of msg.peers) {
         knownRoomPeers.set(peer.peer_id, peer.metadata || {});
@@ -170,14 +187,12 @@ SS.on("room_joined", (msg) => {
 });
 
 SS.on("peer_joined", (msg) => {
-    console.log("[Peers] peer_joined event:", msg.peer_id, "metadata:", msg.metadata, "myRole:", currentRole);
     knownRoomPeers.set(msg.peer_id, msg.metadata || {});
     checkAndConnect();
     Peers.notifyListeners();
 });
 
 SS.on("peer_metadata_updated", (msg) => {
-    console.log("[Peers] peer_metadata_updated event:", msg.peer_id, "metadata:", msg.metadata, "myRole:", currentRole);
     knownRoomPeers.set(msg.peer_id, msg.metadata || {});
     checkAndConnect();
     Peers.notifyListeners();
@@ -194,11 +209,15 @@ SS.on("peer_left", (msg) => {
 });
 
 SS.on("peer_offer", (msg) => {
+    const fromMeta = knownRoomPeers.get(msg.from_peer);
+    if (currentRole === "proxy" && fromMeta?.role === "proxy") {
+        console.warn(`[Peers] Rejected offer from peer ${msg.from_peer}: both peers are proxy hosts`);
+        return;
+    }
     handleOffer(msg.from_peer, msg.sdp);
 });
 
 SS.on("peer_answer", async (msg) => {
-    console.log("[Peers] Received WebRTC answer from:", msg.from_peer);
     const { from_peer, sdp } = msg;
     const pc = getConnection(from_peer);
     if (!pc) return;

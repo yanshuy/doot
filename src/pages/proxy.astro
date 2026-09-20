@@ -50,7 +50,7 @@ import DootLogo from "../components/DootLogo.astro";
                                 <input
                                     id="host-target-input"
                                     type="text"
-                                    value="http://localhost:4322"
+                                    value="http://localhost:4321"
                                     class="input mono-font"
                                     placeholder="http://localhost:4322"
                                 />
@@ -61,7 +61,10 @@ import DootLogo from "../components/DootLogo.astro";
                     <aside class="peer-panel host-peer-panel">
                         <h2 class="panel-title">Connected Clients</h2>
                         <div class="client-count-wrapper">
-                            <span id="host-peer-name" class="client-count-number">0</span>
+                            <span
+                                id="host-peer-name"
+                                class="client-count-number">0</span
+                            >
                         </div>
                     </aside>
                 </div>
@@ -140,14 +143,17 @@ import DootLogo from "../components/DootLogo.astro";
                                 class="btn btn-primary btn-client-theme"
                             >
                                 <span>Open Tunneled App</span>
-                                <iconify-icon icon="mdi:open-in-new"></iconify-icon>
+                                <iconify-icon icon="mdi:open-in-new"
+                                ></iconify-icon>
                             </a>
                         </div>
                     </div>
 
                     <aside class="peer-panel">
                         <h2 class="panel-title">Host</h2>
-                        <p id="client-peer-name" class="peer-name">Waiting for a host...</p>
+                        <p id="client-peer-name" class="peer-name">
+                            Waiting for a host...
+                        </p>
                     </aside>
                 </div>
             </div>
@@ -167,11 +173,11 @@ import DootLogo from "../components/DootLogo.astro";
     const roomIdEl = document.getElementById("room-id");
     if (roomIdEl) roomIdEl.textContent = roomName;
 
-    // Mode Toggle: 'proxy' (host sharing their app) vs 'client' (viewing app)
+    // Mode: Default is always 'client'. A client chooses to become a 'proxy' (host).
     let mode: "proxy" | "client" =
-        params.get("mode") === "client" || params.get("role") === "client"
-            ? "client"
-            : "proxy";
+        params.get("mode") === "proxy" || params.get("role") === "proxy"
+            ? "proxy"
+            : "client";
 
     // Join room with initial role metadata
     setRole(mode);
@@ -316,7 +322,8 @@ import DootLogo from "../components/DootLogo.astro";
     // Helper to update client peer UI
     function updateClientPeerUI(peerId: string | null) {
         if (!peerId) {
-            if (clientPeerName) clientPeerName.textContent = "Waiting for a host...";
+            if (clientPeerName)
+                clientPeerName.textContent = "Waiting for a host...";
             if (clientMobilePeerLabel)
                 clientMobilePeerLabel.innerHTML = `Waiting for a host...`;
             return;
@@ -784,8 +791,6 @@ import DootLogo from "../components/DootLogo.astro";
         background: var(--accent-primary);
         color: var(--text-on-accent);
     }
-
-
 
     .btn-client-theme {
         background: #82aaff !important;

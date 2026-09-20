@@ -3,8 +3,30 @@ import { defineConfig } from "astro/config";
 
 // https://astro.build/config
 export default defineConfig({
+  security: {
+    checkOrigin: false,
+    allowedDomains: [
+      { hostname: "yydoot.github.io" },
+      { hostname: "*.trycloudflare.com" },
+      { hostname: "doot.rocks" },
+      { hostname: "localhost" }
+    ],
+  },
+
   server: {
     host: true,
-    allowedHosts: [".trycloudflare.com", ".localhost:5173"],
+    allowedHosts: [
+      ".trycloudflare.com",
+      "yydoot.github.io",
+      ".doot.rocks",
+      "doot.rocks",
+      "localhost",
+    ],
+  },
+  vite: {
+    server: {
+      cors: true,
+    },
   },
 });
+
