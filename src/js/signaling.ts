@@ -1,8 +1,9 @@
 import { PEER_ID } from "./peerId";
 
-export const SIGNAL_SERVER_URL = import.meta.env.PUBLIC_SIGNAL_SERVER
-  ? `wss://${import.meta.env.PUBLIC_SIGNAL_SERVER}/yo`
-  : "ws://localhost:3333/yo";
+const SIGNAL_SERVER_ORIGIN = import.meta.env.PUBLIC_SIGNAL_SERVER;
+
+const proto = window.location.protocol === "https:" ? "wss" : "ws";
+export const SIGNAL_SERVER_URL = `${proto}://${SIGNAL_SERVER_ORIGIN}/yo`;
 
 export interface PeerInfo {
   peer_id: string;
@@ -15,7 +16,7 @@ export interface PeerInfo {
 }
 
 export type Signal =
-  | { type: "room_joined"; room_id: string; peers: (string | PeerInfo)[] }
+  | { type: "room_joined"; room_id: string; peers: PeerInfo[] }
   | { type: "peer_joined"; room_id: string; peer_id: string; metadata?: any }
   | { type: "peer_metadata_updated"; room_id: string; peer_id: string; metadata: any }
   | { type: "peer_left"; room_id: string; peer_id: string }
@@ -78,7 +79,7 @@ export type SignalHandler<T extends Signal["type"]> = (
 
 export type SignalingServer = {
   socket: WebSocket;
-  joinRoom: (roomId: string) => void;
+  joinRoom: (roomId: string, metadata?: any) => void;
   sendSignal: (payload: SendSignal) => void;
   on<T extends Signal["type"]>(type: T, handler: SignalHandler<T>): () => void;
   off<T extends Signal["type"]>(type: T, handler: SignalHandler<T>): void;
@@ -87,8 +88,16 @@ export type SignalingServer = {
 export function SignalServer(peerId: string): SignalingServer {
   const socket = new WebSocket(`${SIGNAL_SERVER_URL}?peer_id=${peerId}`);
   const listeners = new Map<string, Set<(msg: any) => void>>();
+  const sendQueue: SendSignal[] = [];
 
-  socket.onopen = () => { };
+  socket.onopen = () => {
+    while (sendQueue.length > 0) {
+      const payload = sendQueue.shift();
+      if (payload) {
+        socket.send(JSON.stringify(payload));
+      }
+    }
+  };
 
   function handleSignal(message: Signal) {
     const handlers = listeners.get(message.type);
@@ -123,25 +132,29 @@ export function SignalServer(peerId: string): SignalingServer {
     sendSignal(payload: SendSignal) {
       if (socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify(payload));
+      } else if (socket.readyState === WebSocket.CONNECTING) {
+        sendQueue.push(payload);
+      } else {
+        console.warn("[Signaling] Cannot send signal, socket state:", socket.readyState);
       }
     },
 
-    joinRoom(roomId: string) {
-      this.sendSignal({ type: "join", room_id: roomId });
+    joinRoom(roomId: string, metadata?: any) {
+      this.sendSignal({ type: "join", room_id: roomId, metadata });
     },
 
     on<T extends Signal["type"]>(type: T, handler: SignalHandler<T>) {
       if (!listeners.has(type)) {
         listeners.set(type, new Set());
       }
-      listeners.get(type)!.add(handler as (msg: any) => void);
+      listeners.get(type)!.add(handler);
       return () => {
-        listeners.get(type)?.delete(handler as (msg: any) => void);
+        listeners.get(type)?.delete(handler);
       };
     },
 
     off<T extends Signal["type"]>(type: T, handler: SignalHandler<T>) {
-      listeners.get(type)?.delete(handler as (msg: any) => void);
+      listeners.get(type)?.delete(handler);
     },
   };
 
@@ -149,13 +162,3 @@ export function SignalServer(peerId: string): SignalingServer {
 }
 
 export const SS = SignalServer(PEER_ID);
-
-type Result<T> = { ok: true; result: T } | { ok: false; error: unknown };
-
-function Try<T>(func: () => T): Result<T> {
-  try {
-    return { ok: true, result: func() };
-  } catch (err) {
-    return { ok: false, error: err };
-  }
-}

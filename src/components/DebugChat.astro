@@ -181,6 +181,11 @@
         border: none;
         background-color: var(--accent-primary);
         color: var(--text-on-accent);
+        transition: background-color 0.15s ease;
+    }
+
+    .debug-btn:hover:not(:disabled) {
+        background-color: var(--accent-primary-hover);
     }
 
     .debug-btn:disabled {

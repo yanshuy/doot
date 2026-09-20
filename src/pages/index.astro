@@ -39,36 +39,42 @@ import DootLogo from "../components/DootLogo.astro";
 				<div class="dialog-body">
 					<div class="info-item">
 						<div class="info-icon">
-							<iconify-icon icon="mdi:shield-lock-outline"></iconify-icon>
+							<iconify-icon icon="mdi:shield-lock-outline"
+							></iconify-icon>
 						</div>
 						<div class="info-text">
 							<strong>End-to-End Direct P2P</strong>
 							<p>
-								Files & HTTP streams flow directly between peers over encrypted WebRTC channels.
+								Files & HTTP streams flow directly between peers
+								over encrypted WebRTC channels.
 							</p>
 						</div>
 					</div>
 
 					<div class="info-item">
 						<div class="info-icon">
-							<iconify-icon icon="mdi:swap-horizontal-bold"></iconify-icon>
+							<iconify-icon icon="mdi:swap-horizontal-bold"
+							></iconify-icon>
 						</div>
 						<div class="info-text">
 							<strong>P2P HTTP Proxy</strong>
 							<p>
-								Tunnel website HTTP requests dynamically to a local app server running on a peer machine.
+								Tunnel website HTTP requests dynamically to a
+								local app server running on a peer machine.
 							</p>
 						</div>
 					</div>
 
 					<div class="info-item">
 						<div class="info-icon">
-							<iconify-icon icon="mdi:cloud-off-outline"></iconify-icon>
+							<iconify-icon icon="mdi:cloud-off-outline"
+							></iconify-icon>
 						</div>
 						<div class="info-text">
 							<strong>Zero Cloud Storage</strong>
 							<p>
-								No data logging, no cloud storage, and zero intermediate servers.
+								No data logging, no cloud storage, and zero
+								intermediate servers.
 							</p>
 						</div>
 					</div>
@@ -79,9 +85,23 @@ import DootLogo from "../components/DootLogo.astro";
 		<main class="main-content">
 			<div class="hero-section">
 				<h1 class="hero-title">Join a Room</h1>
-				<p class="hero-subtitle">
-					Select room type to share files or tunnel HTTP requests via P2P
-				</p>
+			</div>
+
+			<!-- Tab Navigation matching room.astro and proxy.astro style -->
+			<div class="tab-nav">
+				<span class="tab-nav-label mono-font">Select type:</span>
+				<div class="tab-nav-buttons">
+					<button
+						id="tab-btn-file"
+						type="button"
+						class="tab-btn active"
+					>
+						<span>File Transfer</span>
+					</button>
+					<button id="tab-btn-proxy" type="button" class="tab-btn">
+						<span>HTTP Proxy</span>
+					</button>
+				</div>
 			</div>
 
 			<section class="join-card">
@@ -92,7 +112,9 @@ import DootLogo from "../components/DootLogo.astro";
 					method="GET"
 				>
 					<div class="input-group">
-						<label for="room-input" class="input-label">ROOM NAME</label>
+						<label for="room-input" class="input-label"
+							>ROOM NAME</label
+						>
 						<input
 							id="room-input"
 							name="name"
@@ -103,18 +125,6 @@ import DootLogo from "../components/DootLogo.astro";
 							autocomplete="off"
 							required
 						/>
-					</div>
-
-					<div class="input-group">
-						<label class="input-label">ROOM TYPE</label>
-						<div class="mode-toggle">
-							<button type="button" id="mode-file" class="mode-btn active">
-								File Transfer
-							</button>
-							<button type="button" id="mode-proxy" class="mode-btn">
-								HTTP Proxy
-							</button>
-						</div>
 					</div>
 
 					<button
@@ -131,12 +141,20 @@ import DootLogo from "../components/DootLogo.astro";
 </Layout>
 
 <script>
-	const infoBtn = document.getElementById("info-btn") as HTMLButtonElement | null;
-	const infoDialog = document.getElementById("info-dialog") as HTMLDialogElement | null;
-	const dialogCloseBtn = document.getElementById("dialog-close-btn") as HTMLButtonElement | null;
-	const joinForm = document.getElementById("join-form") as HTMLFormElement | null;
-	const modeFileBtn = document.getElementById("mode-file");
-	const modeProxyBtn = document.getElementById("mode-proxy");
+	const infoBtn = document.getElementById(
+		"info-btn",
+	) as HTMLButtonElement | null;
+	const infoDialog = document.getElementById(
+		"info-dialog",
+	) as HTMLDialogElement | null;
+	const dialogCloseBtn = document.getElementById(
+		"dialog-close-btn",
+	) as HTMLButtonElement | null;
+	const joinForm = document.getElementById(
+		"join-form",
+	) as HTMLFormElement | null;
+	const tabBtnFile = document.getElementById("tab-btn-file");
+	const tabBtnProxy = document.getElementById("tab-btn-proxy");
 
 	infoBtn?.addEventListener("click", () => {
 		infoDialog?.showModal();
@@ -152,16 +170,16 @@ import DootLogo from "../components/DootLogo.astro";
 		}
 	});
 
-	modeFileBtn?.addEventListener("click", () => {
+	tabBtnFile?.addEventListener("click", () => {
 		if (joinForm) joinForm.action = "/room";
-		modeFileBtn.classList.add("active");
-		modeProxyBtn?.classList.remove("active");
+		tabBtnFile.classList.add("active");
+		tabBtnProxy?.classList.remove("active");
 	});
 
-	modeProxyBtn?.addEventListener("click", () => {
+	tabBtnProxy?.addEventListener("click", () => {
 		if (joinForm) joinForm.action = "/proxy";
-		modeProxyBtn.classList.add("active");
-		modeFileBtn?.classList.remove("active");
+		tabBtnProxy.classList.add("active");
+		tabBtnFile?.classList.remove("active");
 	});
 </script>
 
@@ -314,7 +332,6 @@ import DootLogo from "../components/DootLogo.astro";
 		font-size: 34px;
 		font-weight: 800;
 		letter-spacing: -0.03em;
-		margin-bottom: 8px;
 	}
 
 	.hero-subtitle {
@@ -375,32 +392,52 @@ import DootLogo from "../components/DootLogo.astro";
 		border-color: var(--accent-primary);
 	}
 
-	.mode-toggle {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 8px;
-		background-color: var(--bg-input);
-		border: 1px solid var(--border-subtle);
-		border-radius: 8px;
-		padding: 4px;
+	/* Tab Navigation matching room.astro and proxy.astro */
+	.tab-nav {
+		display: flex;
+		align-items: center;
+		padding: 4px 0;
+		gap: 12px;
+		width: 100%;
+		max-width: 420px;
+		margin-bottom: 1rem;
 	}
 
-	.mode-btn {
+	.tab-nav-label {
+		font-size: 13px;
+		font-weight: 500;
+		color: var(--text-muted);
+		letter-spacing: -0.01em;
+	}
+
+	.tab-nav-buttons {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+
+	.tab-btn {
+		border-radius: 6px;
+		font-size: 14px;
+		font-weight: 600;
+		padding: 4px 6px;
+		color: var(--text-secondary);
 		background: transparent;
 		border: none;
-		color: var(--text-secondary);
-		padding: 8px 12px;
-		font-size: 13px;
-		font-weight: 600;
-		border-radius: 6px;
 		cursor: pointer;
-		transition: color 0.15s ease, background-color 0.15s ease;
+		transition:
+			color 0.15s ease,
+			background-color 0.15s ease;
 	}
 
-	.mode-btn.active {
-		background-color: var(--bg-surface);
+	.tab-btn:hover {
+		color: var(--text-primary);
+	}
+
+	.tab-btn.active {
+		text-decoration: underline;
+		text-underline-offset: 4px;
 		color: var(--accent-text);
-		box-shadow: var(--shadow-sm);
 	}
 
 	.mono-font {

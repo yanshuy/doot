@@ -1,319 +1,305 @@
-// public/sw.js - P2P Network Interceptor Service Worker (Client Window Tracking)
-
-const CRLF = "\r\n";
-const encoder = new TextEncoder();
-const decoder = new TextDecoder();
-
-let requestId = 1;
-const responseResolvers = new Map();
-const TUNNEL_PREFIX = "/tunnel";
-const P2P_TUNNEL_PREFIX = "/p2p-tunnel";
-
-// Track window client IDs that belong to the tunneled application
-const tunneledClientIds = new Set();
-
-self.addEventListener("install", () => {
-  self.skipWaiting();
-});
-
-self.addEventListener("activate", (ev) => {
-  ev.waitUntil(self.clients.claim());
-});
-
-async function isTunneledClient(clientId) {
-  if (!clientId) return false;
-  if (tunneledClientIds.has(clientId)) return true;
-  try {
-    const client = await self.clients.get(clientId);
-    if (
-      client &&
-      (client.url.includes(TUNNEL_PREFIX) || client.url.includes(P2P_TUNNEL_PREFIX))
-    ) {
-      tunneledClientIds.add(clientId);
-      return true;
-    }
-  } catch (e) {}
-  return false;
-}
-
-self.addEventListener("fetch", (ev) => {
-  // Prevent loopback if host proxy fetch originates from the same browser context
-  if (ev.request.headers.has("X-Doot-Loopback")) {
-    return;
-  }
-
-  const url = new URL(ev.request.url);
-
-  // 1. External origins bypass
-  if (url.origin !== self.location.origin) {
-    return;
-  }
-
-  // 2. Doot controller pages and service worker script bypass
-  if (
-    url.pathname.startsWith("/proxy") ||
-    url.pathname.startsWith("/room") ||
-    url.pathname === "/sw.js" ||
-    url.pathname === "/" ||
-    url.pathname === "/index.html"
-  ) {
-    return;
-  }
-
-  // 3. Top-level Document Navigation
-  if (ev.request.mode === "navigate") {
-    ev.respondWith(
-      (async () => {
-        const isExplicitTunnelPath =
-          url.pathname.startsWith(TUNNEL_PREFIX) ||
-          url.pathname.startsWith(P2P_TUNNEL_PREFIX);
-
-        const isFromTunneledTab =
-          ev.clientId && (await isTunneledClient(ev.clientId));
-
-        const isFromTunneledReferrer =
-          ev.request.referrer &&
-          (ev.request.referrer.includes(TUNNEL_PREFIX) ||
-            ev.request.referrer.includes(P2P_TUNNEL_PREFIX)) &&
-          !ev.request.referrer.includes("/proxy") &&
-          !ev.request.referrer.includes("/room");
-
-        if (isExplicitTunnelPath || isFromTunneledTab || isFromTunneledReferrer) {
-          if (ev.resultingClientId) {
-            tunneledClientIds.add(ev.resultingClientId);
-          }
-          return await tunnelRequest(ev);
-        }
-
-        // Pass through standard Doot navigation
-        return await fetch(ev.request);
-      })()
-    );
-    return;
-  }
-
-  // 4. Sub-resources (CSS, JS, images, fonts, API calls)
-  ev.respondWith(
-    (async () => {
-      // Check if the request was initiated by a tunneled window tab
-      if (ev.clientId && (await isTunneledClient(ev.clientId))) {
-        return await tunnelRequest(ev);
+"use strict";
+(() => {
+  // src/js/proxy/http.ts
+  var REQUEST_BODY_CHUNK = "REQUEST_BODY_CHUNK";
+  var REQUEST_END = "REQUEST_END";
+  var REQUEST_ERROR = "REQUEST_ERROR";
+  var RESPONSE_HEADER = "RESPONSE_HEADER";
+  var RESPONSE_BODY_CHUNK = "RESPONSE_BODY_CHUNK";
+  var RESPONSE_END = "RESPONSE_END";
+  var RESPONSE_ERROR = "RESPONSE_ERROR";
+  var CRLF = "\r\n";
+  var encoder = new TextEncoder();
+  var decoder = new TextDecoder();
+  function parseRawHead(data) {
+    let headerEndIndex = -1;
+    for (let i = data.length - 4; i >= 0; i--) {
+      if (data[i] === 13 && data[i + 1] === 10 && data[i + 2] === 13 && data[i + 3] === 10) {
+        headerEndIndex = i;
+        break;
       }
-
-      // Check if the URL explicitly targets the tunnel prefix
-      if (
-        url.pathname.startsWith(TUNNEL_PREFIX) ||
-        url.pathname.startsWith(P2P_TUNNEL_PREFIX)
-      ) {
-        if (ev.clientId) {
-          tunneledClientIds.add(ev.clientId);
-        }
-        return await tunnelRequest(ev);
-      }
-
-      // Referrer fallback for sub-resources
-      if (
-        ev.request.referrer &&
-        (ev.request.referrer.includes(TUNNEL_PREFIX) ||
-          ev.request.referrer.includes(P2P_TUNNEL_PREFIX)) &&
-        !ev.request.referrer.includes("/proxy") &&
-        !ev.request.referrer.includes("/room")
-      ) {
-        if (ev.clientId) {
-          tunneledClientIds.add(ev.clientId);
-        }
-        return await tunnelRequest(ev);
-      }
-
-      // Pass through local Doot assets
-      return await fetch(ev.request);
-    })()
-  );
-});
-
-self.addEventListener("message", (ev) => {
-  if (ev.data && ev.data.type === "response") {
-    const { id, serialized } = ev.data;
-    const res = deserializeResponse(serialized);
-
-    const resolve = responseResolvers.get(id);
-    if (!resolve) {
-      return;
     }
-
-    resolve(res);
-    responseResolvers.delete(id);
-  }
-});
-
-async function getTunnelClient() {
-  const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-  // Find the /proxy tab which is running the P2P Proxy Manager
-  return clients.find((c) => {
-    try {
-      const url = new URL(c.url);
-      return url.pathname.startsWith("/proxy");
-    } catch (e) {
-      return false;
+    if (headerEndIndex === -1) {
+      return null;
     }
-  });
-}
-
-async function tunnelRequest(ev) {
-  const tc = await getTunnelClient();
-  if (!tc) {
-    return new Response(
-      "<!DOCTYPE html><html><head><title>503 Service Unavailable</title></head><body style=\"font-family:system-ui,sans-serif;padding:2rem;background:#0f111a;color:#e2e8f0;\">" +
-        "<h1 style=\"color:#f87171;\">503: Service Unavailable</h1>" +
-        "<p>No active P2P Proxy controller tab found. Please open the <a href=\"/proxy\" style=\"color:#60a5fa;\">Proxy Control Page</a>.</p></body></html>",
-      { status: 503, headers: new Headers({ "Content-Type": "text/html; charset=utf-8" }) }
-    );
+    const headStr = decoder.decode(data.subarray(0, headerEndIndex));
+    const lines = headStr.split(CRLF);
+    if (lines.length < 1 || !lines[0]) return null;
+    const headers = new Headers();
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line) continue;
+      const colonIdx = line.indexOf(":");
+      if (colonIdx !== -1) {
+        headers.append(
+          line.slice(0, colonIdx).trim(),
+          line.slice(colonIdx + 1).trim()
+        );
+      }
+    }
+    return { startLine: lines[0], headers };
   }
-
-  const { method, url, headers } = ev.request;
-  const headersList = [];
-  headers.forEach((value, key) => {
-    headersList.push([key, value]);
-  });
-  const hasBody = ev.request.body !== null;
-  const serialized = await serializeRequest(ev.request);
-
-  const currentId = requestId++;
-  const resPromise = new Promise((resolve) => {
-    // Timeout safeguard: Never hang a request indefinitely
-    const timer = setTimeout(() => {
-      responseResolvers.delete(currentId);
-      resolve(
-        new Response(
-          "<!DOCTYPE html><html><head><title>504 Gateway Timeout</title></head><body style=\"font-family:system-ui,sans-serif;padding:2rem;background:#0f111a;color:#e2e8f0;\">" +
-            "<h1 style=\"color:#f87171;\">504: Gateway Timeout</h1>" +
-            "<p>P2P Host did not respond in time over WebRTC. Make sure your Proxy Host is active and connected in the room.</p></body></html>",
-          { status: 504, headers: new Headers({ "Content-Type": "text/html; charset=utf-8" }) }
-        )
-      );
-    }, 15000);
-
-    responseResolvers.set(currentId, (res) => {
-      clearTimeout(timer);
-      resolve(res);
+  function parseResponseHead(data) {
+    const parsed = parseRawHead(data);
+    if (!parsed) return null;
+    const [_, statusStr, ...statusParts] = parsed.startLine.split(" ");
+    const status = parseInt(statusStr, 10);
+    const statusText = statusParts.join(" ");
+    return {
+      status,
+      statusText,
+      headers: parsed.headers
+    };
+  }
+  function serializeRequestHeader(req, overridePath) {
+    const url = new URL(req.url);
+    const pathToSend = overridePath ?? `${url.pathname}${url.search}`;
+    const requestLine = `${req.method} ${pathToSend} HTTP/1.1`;
+    const headerFields = [];
+    req.headers.forEach((val, key) => {
+      const lower = key.toLowerCase();
+      if (lower === "host" || lower === "origin") {
+        return;
+      }
+      headerFields.push(`${key}: ${val}`);
     });
-  });
-
-  tc.postMessage(
-    {
-      type: "request",
-      id: currentId,
-      method,
-      url,
-      headersList,
-      hasBody,
-      serialized,
-    },
-    [serialized]
-  );
-
-  return await resPromise;
-}
-
-async function serializeRequest(req) {
-  const url = new URL(req.url);
-  url.hash = "";
-
-  const body = await req.arrayBuffer();
-  const requestLine = `${req.method} ${url.toString()} HTTP/1.1`;
-  const headerFields = [];
-  req.headers.forEach((v, k) => {
-    headerFields.push(`${k}: ${v}`);
-  });
-
-  const extra = [
-    ["Host", url.host],
-    ["Origin", self.location.origin],
-    ["User-Agent", self.navigator.userAgent],
-    ["Content-Length", body.byteLength],
-  ];
-  extra.forEach(([k, v]) => {
-    if (!req.headers.has(k)) {
-      headerFields.push(`${k}: ${v}`);
-    }
-  });
-
-  const headerStr = requestLine + CRLF + headerFields.join(CRLF) + CRLF + CRLF;
-  const header = encoder.encode(headerStr);
-
-  const out = new Uint8Array(header.byteLength + body.byteLength);
-  out.set(header, 0);
-  out.set(new Uint8Array(body), header.byteLength);
-
-  return out.buffer;
-}
-
-function deserializeResponse(serialized) {
-  const arr = new Uint8Array(serialized);
-  const match = findHeaderEnd(arr);
-  if (!match) {
-    return Response.error();
+    const headerStr = requestLine + CRLF + headerFields.join(CRLF) + CRLF + CRLF;
+    return encoder.encode(headerStr);
   }
 
-  const header = arr.subarray(0, match.index);
-  const body = arr.subarray(match.index + match.length);
+  // src/js/sw/templates.ts
+  function getConnectingPromptHtml(roomId, proxyUrl) {
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Proxy Hub Required - Doot</title>
+</head>
+<body style="font-family:system-ui,-apple-system,sans-serif;padding:36px;background:#292d3e;color:#eef0f7;margin:0;line-height:1.4;">
+  <h2 style="color:#89b4fa;margin:0 0 12px;font-size:20px;font-weight:600;">Proxy Hub Required</h2>
+  <p style="margin:0 0 4px;font-size:14px;color:#eef0f7;">No active WebRTC peer bridge was found in this browser.</p>
+  <p style="color:#a3a8c2;font-size:13px;margin:0 0 20px;">Open the client proxy hub in another tab to connect.</p>
+  <p style="margin:0;">
+    <a style="display:inline-block;padding:8px 16px;background:#89b4fa;color:#11111b;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;text-decoration:none;" href="${proxyUrl}" target="_blank" rel="noreferrer">Open Proxy Client Hub</a>
+  </p>
+  <script>
+    const channel = new BroadcastChannel("doot_tunnel");
+    channel.onmessage = (e) => {
+      if (e.data?.type === "ready" && (!e.data.roomId || e.data.roomId === "${roomId}")) {
+        window.location.reload();
+      }
+    };
+  <\/script>
+</body>
+</html>`;
+  }
+  function getBadGatewayHtml(message) {
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>502 Bad Gateway</title>
+</head>
+<body style="font-family:system-ui,-apple-system,sans-serif;padding:36px;background:#292d3e;color:#eef0f7;margin:0;line-height:1.4;">
+  <h2 style="color:#f38ba8;margin:0 0 12px;font-size:20px;font-weight:600;">502 Bad Gateway</h2>
+  <p style="margin:0 0 4px;font-size:14px;color:#eef0f7;">The proxy request over WebRTC failed or the local server refused the connection.</p>
+  <p style="color:#a3a8c2;font-size:13px;margin:0 0 20px;">${message || "Make sure your local application is running and the host tab is active."}</p>
+  <p style="margin:0;">
+    <button style="padding:8px 16px;background:#89b4fa;color:#11111b;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;" onclick="window.location.reload()">Retry</button>
+  </p>
+  <script>
+    const channel = new BroadcastChannel("doot_tunnel");
+    channel.onmessage = (e) => {
+      if (e.data?.type === "ready") {
+        window.location.reload();
+      }
+    };
+  <\/script>
+</body>
+</html>`;
+  }
 
-  const headerStr = decoder.decode(header);
-  const { status, statusText, headersList } = parseHeader(headerStr);
-
-  const headers = new Headers();
-  for (const [k, v] of headersList) {
-    const lower = k.toLowerCase();
-    if (lower === "content-encoding" || lower === "transfer-encoding") {
-      continue;
+  // src/js/sw/sw.ts
+  var PROXY_RESPONSE_PLACEHOLDER = "PROXY_RESPONSE_PLACEHOLDER";
+  var PROXY_REQUEST_START = "PROXY_REQUEST_START";
+  var REQUEST_BODY_START = "REQUEST_BODY_START";
+  var sw = self;
+  async function getProxyClient(roomId) {
+    const clients = await sw.clients.matchAll({ type: "window", includeUncontrolled: true });
+    return clients.find((c) => {
+      try {
+        const u = new URL(c.url);
+        return u.pathname === "/proxy" && (u.searchParams.get("name") === roomId || u.searchParams.get("room") === roomId);
+      } catch {
+        return false;
+      }
+    }) || null;
+  }
+  sw.addEventListener("install", () => {
+    sw.skipWaiting();
+  });
+  sw.addEventListener("activate", (ev) => {
+    ev.waitUntil(sw.clients.claim());
+  });
+  function parseTunnelRoute(url) {
+    const queryRoom = url.searchParams.get("doot_tunnel");
+    if (queryRoom) {
+      const cleanParams = new URLSearchParams(url.search);
+      cleanParams.delete("doot_tunnel");
+      const queryStr = cleanParams.toString();
+      const targetPath = url.pathname + (queryStr ? `?${queryStr}` : "");
+      return { roomId: queryRoom, targetPath };
     }
+    return null;
+  }
+  sw.addEventListener("fetch", (ev) => {
+    const url = new URL(ev.request.url);
+    if (url.origin != sw.location.origin) return;
+    if (url.pathname === "/sw.js") return;
+    ev.respondWith(handleFetch(ev, url));
+  });
+  async function handleFetch(ev, url) {
+    let roomId = null;
+    let targetPath = null;
+    const tunnelRoute = parseTunnelRoute(url);
+    if (tunnelRoute) {
+      roomId = tunnelRoute.roomId;
+      targetPath = tunnelRoute.targetPath;
+    } else {
+      if (ev.clientId) {
+        try {
+          const client = await sw.clients.get(ev.clientId);
+          if (client) {
+            const clientRoute = parseTunnelRoute(new URL(client.url));
+            if (clientRoute) {
+              roomId = clientRoute.roomId;
+              targetPath = url.pathname + url.search;
+            }
+          }
+        } catch {
+        }
+      }
+      if (!roomId) {
+        const referer = ev.request.headers.get("referer");
+        if (referer) {
+          try {
+            const refRoute = parseTunnelRoute(new URL(referer));
+            if (refRoute) {
+              roomId = refRoute.roomId;
+              targetPath = url.pathname + url.search;
+            }
+          } catch {
+          }
+        }
+      }
+    }
+    if (!roomId || !targetPath) {
+      return fetch(ev.request);
+    }
+    if (ev.request.mode === "navigate" && !url.searchParams.has("doot_tunnel")) {
+      const nextUrl = new URL(url.toString());
+      nextUrl.searchParams.set("doot_tunnel", roomId);
+      return Response.redirect(nextUrl.toString(), 302);
+    }
+    const proxyClient = await getProxyClient(roomId);
+    if (!proxyClient) {
+      const proxyUrl = `${url.origin}/proxy?name=${encodeURIComponent(roomId)}&mode=client`;
+      return new Response(getConnectingPromptHtml(roomId, proxyUrl), {
+        status: 503,
+        headers: { "Content-Type": "text/html; charset=utf-8" }
+      });
+    }
+    return tunnelRequest(ev, proxyClient, targetPath);
+  }
+  async function tunnelRequest(ev, proxyClient, targetPath) {
+    const headBytes = serializeRequestHeader(ev.request, targetPath);
+    const msgChannel = new MessageChannel();
+    const localPort = msgChannel.port1;
+    const remotePort = msgChannel.port2;
+    const body = ev.request.body;
+    proxyClient.postMessage(
+      {
+        type: PROXY_REQUEST_START,
+        head: headBytes.buffer,
+        hasBody: body != null
+      },
+      [remotePort, headBytes.buffer]
+    );
+    return responsePromise(localPort, body);
+  }
+  function responsePromise(port, body) {
+    return new Promise((resolve, reject) => {
+      let streamController = null;
+      const responseStream = new ReadableStream({
+        start(controller) {
+          streamController = controller;
+        }
+      });
+      port.onmessage = (event) => {
+        switch (event.data.type) {
+          case REQUEST_BODY_START: {
+            if (body) {
+              const reader = body.getReader();
+              readLoop(reader, port);
+            }
+            break;
+          }
+          case RESPONSE_HEADER: {
+            const data = new Uint8Array(event.data.buffer);
+            const parsed = parseResponseHead(data);
+            if (parsed) {
+              resolve(
+                new Response(responseStream, {
+                  status: parsed.status,
+                  statusText: parsed.statusText,
+                  headers: parsed.headers
+                })
+              );
+            }
+            break;
+          }
+          case RESPONSE_BODY_CHUNK: {
+            streamController?.enqueue(new Uint8Array(event.data.buffer));
+            break;
+          }
+          case RESPONSE_END: {
+            streamController?.close();
+            port.close();
+            break;
+          }
+          case RESPONSE_ERROR: {
+            if (streamController) {
+              streamController.error(new Error("P2P Stream Error"));
+            }
+            port.close();
+            resolve(
+              new Response(getBadGatewayHtml(), {
+                status: 502,
+                headers: { "Content-Type": "text/html; charset=utf-8" }
+              })
+            );
+            break;
+          }
+        }
+      };
+      port.start();
+    });
+  }
+  async function readLoop(reader, localPort) {
     try {
-      headers.append(k, v);
-    } catch (e) {}
-  }
-
-  return new Response(body, {
-    status,
-    statusText,
-    headers,
-  });
-}
-
-function findHeaderEnd(arr) {
-  for (let i = 0; i < arr.length - 1; i++) {
-    if (
-      i <= arr.length - 4 &&
-      arr[i] === 13 &&
-      arr[i + 1] === 10 &&
-      arr[i + 2] === 13 &&
-      arr[i + 3] === 10
-    ) {
-      return { index: i, length: 4 };
-    }
-    if (arr[i] === 10 && arr[i + 1] === 10) {
-      return { index: i, length: 2 };
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          localPort.postMessage({ type: REQUEST_END });
+          break;
+        }
+        localPort.postMessage(
+          { type: REQUEST_BODY_CHUNK, buffer: value.buffer },
+          [value.buffer]
+        );
+      }
+    } catch (e) {
+      localPort.postMessage({ type: REQUEST_ERROR });
     }
   }
-  return null;
-}
-
-function parseHeader(header) {
-  const lines = header.split(/\r?\n/);
-  const requestLine = lines[0] || "";
-  const headerFieldLines = lines.slice(1);
-
-  const parts = requestLine.trim().split(" ");
-  const status = parseInt(parts[1], 10) || 200;
-  const statusText = parts.slice(2).join(" ") || "OK";
-
-  const headersList = [];
-  for (const line of headerFieldLines) {
-    if (!line) continue;
-    const colonIdx = line.indexOf(":");
-    if (colonIdx !== -1) {
-      headersList.push([line.slice(0, colonIdx).trim(), line.slice(colonIdx + 1).trim()]);
-    }
-  }
-
-  return { status, statusText, headersList };
-}
+})();

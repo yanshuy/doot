@@ -1,4 +1,4 @@
-import { SS, type SignalingServer } from "./signaling";
+import { SS, type SignalingServer } from "../signaling";
 
 const Rooms = new Map<string, Room>();
 
@@ -13,7 +13,7 @@ function Peer(peerId: string): Peer {
     id: peerId,
     peerConns: [],
 
-    connect() {},
+    connect() { },
   };
   return peer;
 }

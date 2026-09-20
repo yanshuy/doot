@@ -4,668 +4,983 @@ import DootLogo from "../components/DootLogo.astro";
 ---
 
 <Layout>
-    <div class="proxy-page-container">
-        <!-- Connecting Overlay for Client mode -->
-        <div id="connecting-overlay" class="connecting-overlay">
-            <div class="connecting-content">
-                <div class="logo-ping-wrap">
-                    <div class="ping-circle"></div>
-                    <DootLogo size={72} />
-                </div>
-                <div class="connecting-text-group">
-                    <h2 class="connecting-title">Establishing P2P Tunnel...</h2>
-                    <p id="connecting-status" class="connecting-status mono-font">
-                        Joining room & locating Proxy Host...
-                    </p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Main Room Header -->
+    <div class="proxy-page">
+        <!-- Minimal Header matching doot style -->
         <header class="header">
             <a href="/" class="brand">
-                <DootLogo />
+                <DootLogo size={44} />
                 <span class="brand-name">doot</span>
             </a>
 
-            <!-- Interactive Mode Toggle / Segmented Control -->
-            <div class="role-segmented-control">
-                <button id="btn-role-proxy" type="button" class="seg-btn" title="Run as Proxy Host to share your local server">
-                    <iconify-icon icon="mdi:server-network"></iconify-icon>
-                    <span>Host (Share Server)</span>
-                </button>
-                <button id="btn-role-client" type="button" class="seg-btn" title="Run as Client to access remote tunneled app">
-                    <iconify-icon icon="mdi:cellphone-link"></iconify-icon>
-                    <span>Client (View App)</span>
-                </button>
-            </div>
-
-            <div class="header-right">
-                <span class="room-badge mono-font">
-                    room: <strong id="room-name">—</strong>
-                </span>
+            <div class="room-indicator mono-font">
+                <span id="room-label">room:</span>
+                <strong id="room-id">—</strong>
             </div>
         </header>
 
-        <!-- Client Dashboard View (Zero-Iframe Native Bridge) -->
-        <main id="client-dashboard-section" class="proxy-main" style="display: none;">
-            <section class="card launcher-card">
-                <div class="card-header">
-                    <h2 class="card-title">NATIVE P2P TUNNEL READY</h2>
-                </div>
-                <p class="launcher-desc">
-                    The peer-to-peer tunnel is active. Launch the tunneled application as a full, native browser page with zero iframes.
-                </p>
+        <!-- Tab Navigation matching room.astro style -->
+        <div class="tab-nav">
+            <button id="tab-btn-host" type="button" class="tab-btn active">
+                <span>Host</span>
+            </button>
+            <button id="tab-btn-client" type="button" class="tab-btn">
+                <span>Client</span>
+            </button>
+        </div>
 
-                <div class="launcher-actions">
-                    <a
-                        id="btn-launch-tab"
-                        href="/tunnel/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="btn btn-primary btn-large"
-                    >
-                        <span>Launch App in Native Tab</span>
-                        <iconify-icon icon="mdi:open-in-new"></iconify-icon>
-                    </a>
+        <!-- Main Content Panes -->
+        <main class="proxy-content">
+            <!-- Host Panel -->
+            <div id="tab-pane-host" class="tab-pane">
+                <div class="mobile-peer">
+                    <p id="host-mobile-peer-label" class="mobile-peer-label">
+                        no clients connected
+                    </p>
                 </div>
 
-                <div class="tunnel-url-bar">
-                    <span class="url-label mono-font">DIRECT URL</span>
-                    <input
-                        id="client-tunnel-url"
-                        type="text"
-                        readonly
-                        value=""
-                        class="text-input mono-font"
-                    />
-                    <button id="btn-copy-url" type="button" class="btn btn-secondary">
-                        Copy
-                    </button>
-                </div>
-            </section>
+                <div class="proxy-layout">
+                    <div class="proxy-main-col">
+                        <div class="card">
+                            <div class="field-group">
+                                <div class="field-header">
+                                    <label for="host-target-input" class="label"
+                                        >LOCAL SERVER ADDRESS</label
+                                    >
+                                </div>
+                                <input
+                                    id="host-target-input"
+                                    type="text"
+                                    value="http://localhost:4322"
+                                    class="input mono-font"
+                                    placeholder="http://localhost:4322"
+                                />
+                            </div>
+                        </div>
+                    </div>
 
-            <!-- Network Status Overview -->
-            <section class="status-grid">
-                <div class="status-box">
-                    <span class="status-label">SIGNALING</span>
-                    <span id="client-signaling-status" class="status-value mono-font">connecting...</span>
-                </div>
-
-                <div class="status-box">
-                    <span class="status-label">WEBRTC TUNNEL</span>
-                    <span id="client-webrtc-status" class="status-value mono-font">disconnected</span>
-                </div>
-
-                <div class="status-box">
-                    <span class="status-label">SERVICE WORKER</span>
-                    <span id="client-sw-status" class="status-value mono-font">active</span>
+                    <aside class="peer-panel host-peer-panel">
+                        <h2 class="panel-title">Connected Clients</h2>
+                        <div class="client-count-wrapper">
+                            <span id="host-peer-name" class="client-count-number">0</span>
+                        </div>
+                    </aside>
                 </div>
 
-                <div class="status-box">
-                    <span class="status-label">PEERS</span>
-                    <span id="client-peers-count" class="status-value mono-font">0 peers</span>
+                <!-- Host Request Log (Last 50 requests) -->
+                <div class="log-section">
+                    <div class="log-header">
+                        <span class="log-title mono-font">REQUESTS</span>
+                        <button
+                            id="clear-logs-btn"
+                            type="button"
+                            class="btn-clear mono-font">Clear</button
+                        >
+                    </div>
+                    <div class="log-grid-container">
+                        <div id="log-empty" class="log-empty">
+                            No requests forwarded yet
+                        </div>
+                        <div
+                            id="log-grid"
+                            class="log-grid"
+                            style="display: none;"
+                        >
+                            <div class="log-grid-header">
+                                <div class="col-id">#</div>
+                                <div class="col-status">STATUS</div>
+                                <div class="col-method">METHOD</div>
+                                <div class="col-path">PATH</div>
+                                <div class="col-time">TIME</div>
+                            </div>
+                            <div id="log-rows" class="log-rows"></div>
+                        </div>
+                    </div>
                 </div>
-            </section>
+            </div>
 
-            <!-- Request Log Table -->
-            <section class="card requests-card">
-                <div class="card-header">
-                    <h2 class="card-title">LIVE TUNNELED REQUESTS LOG</h2>
-                </div>
-                <div class="table-wrap">
-                    <table id="client-requests" class="requests-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>METHOD</th>
-                                <th>PATH</th>
-                                <th>HEADERS</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Dynamic request log rows -->
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-        </main>
-
-        <!-- Dashboard View for Proxy Host (Server Mode) -->
-        <main id="host-dashboard-section" class="proxy-main" style="display: none;">
-            <!-- Target Host Configuration -->
-            <section class="card host-config-card">
-                <div class="card-header">
-                    <h2 class="card-title">PROXY HOST CONFIGURATION</h2>
-                </div>
-
-                <div class="input-group">
-                    <label for="target-host-input" class="input-label">LOCAL TARGET ADDRESS</label>
-                    <input
-                        id="target-host-input"
-                        type="text"
-                        value="http://localhost:4321"
-                        class="text-input mono-font"
-                        placeholder="e.g. http://localhost:4321"
-                    />
-                </div>
-            </section>
-
-            <!-- Network Status Overview -->
-            <section class="status-grid">
-                <div class="status-box">
-                    <span class="status-label">SIGNALING</span>
-                    <span id="signaling-status" class="status-value mono-font">connecting...</span>
+            <!-- Client Panel -->
+            <div id="tab-pane-client" class="tab-pane" hidden>
+                <div class="mobile-peer">
+                    <p id="client-mobile-peer-label" class="mobile-peer-label">
+                        Waiting for a host...
+                    </p>
                 </div>
 
-                <div class="status-box">
-                    <span class="status-label">WEBRTC</span>
-                    <span id="webrtc-status" class="status-value mono-font">disconnected</span>
-                </div>
+                <div class="client-layout">
+                    <div class="client-main-col">
+                        <div class="card">
+                            <div class="field-group">
+                                <div class="field-header">
+                                    <label class="label">TUNNEL ADDRESS</label>
+                                </div>
+                                <div class="input-with-action">
+                                    <input
+                                        id="tunnel-url-input"
+                                        type="text"
+                                        readonly
+                                        class="input mono-font"
+                                    />
+                                    <button
+                                        id="copy-url-btn"
+                                        type="button"
+                                        class="btn btn-secondary"
+                                    >
+                                        Copy
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
 
-                <div class="status-box">
-                    <span class="status-label">SERVICE WORKER</span>
-                    <span id="sw-status" class="status-value mono-font">initializing</span>
-                </div>
+                        <div class="actions-row">
+                            <a
+                                id="launch-btn"
+                                href="#"
+                                target="_blank"
+                                rel="opener"
+                                class="btn btn-primary btn-client-theme"
+                            >
+                                <span>Open Tunneled App</span>
+                                <iconify-icon icon="mdi:open-in-new"></iconify-icon>
+                            </a>
+                        </div>
+                    </div>
 
-                <div class="status-box">
-                    <span class="status-label">PEERS IN ROOM</span>
-                    <span id="peers-count" class="status-value mono-font">0 peers</span>
+                    <aside class="peer-panel">
+                        <h2 class="panel-title">Host</h2>
+                        <p id="client-peer-name" class="peer-name">Waiting for a host...</p>
+                    </aside>
                 </div>
-            </section>
-
-            <!-- Incoming Requests Log -->
-            <section class="card requests-card">
-                <div class="card-header">
-                    <h2 class="card-title">INCOMING P2P REQUESTS LOG</h2>
-                </div>
-                <div class="table-wrap">
-                    <table id="requests" class="requests-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>METHOD</th>
-                                <th>PATH</th>
-                                <th>HEADERS</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Dynamic request log rows -->
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+            </div>
         </main>
     </div>
 </Layout>
 
 <script>
-    import { P2PProxyManager, type PeerRole } from "../js/tunnel";
+    import { SS } from "../js/signaling";
+    import { Peers, setRole, knownRoomPeers, PEER_ID } from "../js/peers";
+    import { handleClientProxyRequest } from "../js/proxy/client";
+    import { setTargetHost, RequestLogs } from "../js/proxy/host";
 
     const params = new URLSearchParams(window.location.search);
     const roomName =
         params.get("name") ||
         params.get("room") ||
         decodeURIComponent(window.location.search.slice(1)) ||
-        "default-proxy";
+        "proxy-room";
 
-    const roomNameEl = document.getElementById("room-name");
-    if (roomNameEl) roomNameEl.textContent = roomName;
+    const roomIdEl = document.getElementById("room-id");
+    if (roomIdEl) roomIdEl.textContent = roomName;
 
-    const connectingOverlay = document.getElementById("connecting-overlay");
-    const connectingStatus = document.getElementById("connecting-status");
-    const roleBadge = document.getElementById("role-badge");
-    const clientDashboardSection = document.getElementById("client-dashboard-section");
-    const hostDashboardSection = document.getElementById("host-dashboard-section");
+    // Mode Toggle: 'proxy' (host sharing their app) vs 'client' (viewing app)
+    let mode: "proxy" | "client" =
+        params.get("mode") === "client" || params.get("role") === "client"
+            ? "client"
+            : "proxy";
 
-    const signalingStatusEl = document.getElementById("signaling-status");
-    const webrtcStatusEl = document.getElementById("webrtc-status");
-    const swStatusEl = document.getElementById("sw-status");
-    const peersCountEl = document.getElementById("peers-count");
-    const requestsEl = document.getElementById("requests");
+    // Join room with initial role metadata
+    setRole(mode);
+    SS.joinRoom(roomName, { role: mode });
 
-    const clientSignalingStatus = document.getElementById("client-signaling-status");
-    const clientWebrtcStatus = document.getElementById("client-webrtc-status");
-    const clientSwStatus = document.getElementById("client-sw-status");
-    const clientPeersCount = document.getElementById("client-peers-count");
-    const clientRequests = document.getElementById("client-requests");
+    // Elements
+    const tabBtnHost = document.getElementById("tab-btn-host");
+    const tabBtnClient = document.getElementById("tab-btn-client");
+    const tabPaneHost = document.getElementById("tab-pane-host");
+    const tabPaneClient = document.getElementById("tab-pane-client");
+    const hostTargetInput = document.getElementById(
+        "host-target-input",
+    ) as HTMLInputElement | null;
+    const tunnelUrlInput = document.getElementById(
+        "tunnel-url-input",
+    ) as HTMLInputElement | null;
+    const copyUrlBtn = document.getElementById("copy-url-btn");
+    const launchBtn = document.getElementById(
+        "launch-btn",
+    ) as HTMLAnchorElement | null;
+    const hostPeerName = document.getElementById("host-peer-name");
+    const hostMobilePeerLabel = document.getElementById(
+        "host-mobile-peer-label",
+    );
+    const clientPeerName = document.getElementById("client-peer-name");
+    const clientMobilePeerLabel = document.getElementById(
+        "client-mobile-peer-label",
+    );
 
-    const targetHostInput = document.getElementById("target-host-input") as HTMLInputElement | null;
-    const clientTunnelUrl = document.getElementById("client-tunnel-url") as HTMLInputElement | null;
-    const btnCopyUrl = document.getElementById("btn-copy-url");
+    // Tunnel param: ?doot_tunnel=<roomId>
+    const tunnelUrl = `${window.location.origin}?doot_tunnel=${encodeURIComponent(roomName)}`;
 
-    if (clientTunnelUrl) {
-        clientTunnelUrl.value = `${window.location.origin}/tunnel/`;
+    if (tunnelUrlInput) tunnelUrlInput.value = tunnelUrl;
+    if (launchBtn) {
+        launchBtn.href = tunnelUrl;
+        launchBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            window.open(tunnelUrl, "_blank");
+        });
     }
 
-    btnCopyUrl?.addEventListener("click", () => {
-        if (clientTunnelUrl) {
-            navigator.clipboard.writeText(clientTunnelUrl.value);
-            btnCopyUrl.textContent = "Copied!";
+    function updateMode(newMode: "proxy" | "client") {
+        mode = newMode;
+        setRole(mode);
+        SS.sendSignal({
+            type: "update_metadata",
+            room_id: roomName,
+            metadata: { role: mode },
+        });
+
+        // Store tab state in URL so reloading opens the correct tab!
+        const curUrl = new URL(window.location.href);
+        curUrl.searchParams.set("mode", mode);
+        window.history.replaceState(null, "", curUrl.toString());
+
+        const isHost = mode === "proxy";
+        tabBtnHost?.classList.toggle("active", isHost);
+        tabBtnClient?.classList.toggle("active", !isHost);
+
+        if (tabPaneHost) tabPaneHost.hidden = !isHost;
+        if (tabPaneClient) tabPaneClient.hidden = isHost;
+    }
+
+    updateMode(mode);
+
+    tabBtnHost?.addEventListener("click", () => updateMode("proxy"));
+    tabBtnClient?.addEventListener("click", () => updateMode("client"));
+
+    // Host Request Logs (Store & display last 50)
+    const logGrid = document.getElementById("log-grid");
+    const logRows = document.getElementById("log-rows");
+    const logEmpty = document.getElementById("log-empty");
+    const clearLogsBtn = document.getElementById("clear-logs-btn");
+
+    clearLogsBtn?.addEventListener("click", () => {
+        RequestLogs.clear();
+    });
+
+    RequestLogs.onchange((entries) => {
+        if (!entries || entries.length === 0) {
+            if (logGrid) logGrid.style.display = "none";
+            if (logEmpty) logEmpty.style.display = "block";
+            if (logRows) logRows.innerHTML = "";
+            return;
+        }
+
+        if (logEmpty) logEmpty.style.display = "none";
+        if (logGrid) logGrid.style.display = "flex";
+
+        if (logRows) {
+            logRows.innerHTML = entries
+                .map((entry) => {
+                    const is2xx = entry.status >= 200 && entry.status < 300;
+                    const is3xx = entry.status >= 300 && entry.status < 400;
+                    const is4xx = entry.status >= 400 && entry.status < 500;
+                    const statusColorClass = is2xx
+                        ? "status-2xx"
+                        : is3xx
+                          ? "status-3xx"
+                          : is4xx
+                            ? "status-4xx"
+                            : "status-5xx";
+
+                    return `
+                        <div class="log-grid-row">
+                            <div class="col-id">${entry.id}</div>
+                            <div class="col-status ${statusColorClass}">${entry.status}</div>
+                            <div class="col-method">${entry.method}</div>
+                            <div class="col-path" title="${entry.path}">${entry.path}</div>
+                            <div class="col-time">${entry.durationMs}ms</div>
+                        </div>
+                    `;
+                })
+                .join("");
+        }
+    });
+
+    // Host target input change
+    hostTargetInput?.addEventListener("change", () => {
+        if (hostTargetInput.value) {
+            setTargetHost(hostTargetInput.value.trim());
+        }
+    });
+
+    // Copy URL
+    copyUrlBtn?.addEventListener("click", () => {
+        if (tunnelUrlInput) {
+            navigator.clipboard.writeText(tunnelUrlInput.value);
+            copyUrlBtn.textContent = "Copied";
             setTimeout(() => {
-                btnCopyUrl.textContent = "Copy";
-            }, 2000);
+                copyUrlBtn.textContent = "Copy";
+            }, 1500);
         }
     });
 
-    const btnRoleProxy = document.getElementById("btn-role-proxy");
-    const btnRoleClient = document.getElementById("btn-role-client");
+    // Broadcast channel to notify waiting tunnel tabs reactively
+    const tunnelChannel =
+        "BroadcastChannel" in window
+            ? new BroadcastChannel("doot_tunnel")
+            : null;
 
-    function updateRoleUI(role: PeerRole) {
-        if (btnRoleProxy) btnRoleProxy.classList.toggle("active", role === "proxy");
-        if (btnRoleClient) btnRoleClient.classList.toggle("active", role === "client");
+    // Helper to update client peer UI
+    function updateClientPeerUI(peerId: string | null) {
+        if (!peerId) {
+            if (clientPeerName) clientPeerName.textContent = "Waiting for a host...";
+            if (clientMobilePeerLabel)
+                clientMobilePeerLabel.innerHTML = `Waiting for a host...`;
+            return;
+        }
 
-        if (role === "proxy") {
-            if (connectingOverlay) connectingOverlay.style.display = "none";
-            if (clientDashboardSection) clientDashboardSection.style.display = "none";
-            if (hostDashboardSection) hostDashboardSection.style.display = "flex";
-        } else {
-            if (hostDashboardSection) hostDashboardSection.style.display = "none";
-            if (clientDashboardSection) clientDashboardSection.style.display = "flex";
+        const formatted = `${peerId.slice(0, 8)}`;
+        if (clientPeerName) clientPeerName.textContent = formatted;
+        if (clientMobilePeerLabel) {
+            clientMobilePeerLabel.innerHTML = `<span style="color: var(--text-primary); margin-right: 5px;">Host</span> <span class="peer-id-val">${formatted}</span>`;
         }
     }
 
-    const manager = new P2PProxyManager(roomName, "client", {
-        autoRole: true,
-        targetHost: targetHostInput?.value || "http://localhost:4321",
-        swStatusEl: clientSwStatus || swStatusEl,
-        requestsEl: requestsEl || clientRequests,
-        callbacks: {
-            onSignalingState: (state) => {
-                if (signalingStatusEl) signalingStatusEl.textContent = state;
-                if (clientSignalingStatus) clientSignalingStatus.textContent = state;
-                if (connectingStatus) connectingStatus.textContent = `Signaling: ${state}...`;
-            },
-            onWebRTCState: (state) => {
-                if (webrtcStatusEl) webrtcStatusEl.textContent = state;
-                if (clientWebrtcStatus) clientWebrtcStatus.textContent = state;
-                if (connectingStatus) connectingStatus.textContent = `WebRTC DataChannel: ${state}...`;
-            },
-            onRoleAssigned: (role) => {
-                updateRoleUI(role);
-            },
-            onTunnelReady: () => {
-                if (connectingOverlay) connectingOverlay.style.display = "none";
-            },
-            onPeersUpdated: (peers) => {
-                const proxyCount = peers.filter((p) => p.role === "proxy").length;
-                const peerStr = `${peers.length} peer${peers.length !== 1 ? "s" : ""} (${proxyCount} host)`;
-                if (peersCountEl) peersCountEl.textContent = peerStr;
-                if (clientPeersCount) clientPeersCount.textContent = peerStr;
-            },
-        },
-    });
-
-    btnRoleProxy?.addEventListener("click", () => {
-        manager.setRole("proxy");
-        updateRoleUI("proxy");
-    });
-
-    btnRoleClient?.addEventListener("click", () => {
-        manager.setRole("client");
-        updateRoleUI("client");
-    });
-
-    manager.connect();
-
-    targetHostInput?.addEventListener("change", () => {
-        if (targetHostInput.value) {
-            manager.setTargetHost(targetHostInput.value.trim());
+    // Helper to update host peer UI
+    function updateHostPeerUI(count: number) {
+        if (hostPeerName) hostPeerName.textContent = String(count);
+        if (hostMobilePeerLabel) {
+            if (count > 0) {
+                hostMobilePeerLabel.innerHTML = `<span style="color: var(--text-primary); margin-right: 5px;">Connected Clients</span> <span class="peer-id-val">${count}</span>`;
+            } else {
+                hostMobilePeerLabel.textContent = "0 clients connected";
+            }
         }
+    }
+
+    // Subscribe to Peers changes
+    Peers.onchange((map) => {
+        // 1. Host side: show number of clients connected (not client ID)
+        const connectedClients = Array.from(map.entries()).filter(
+            ([id, peer]) =>
+                id !== PEER_ID &&
+                peer.conn.connectionState === "connected" &&
+                knownRoomPeers.get(id)?.role !== "proxy",
+        );
+        updateHostPeerUI(connectedClients.length);
+
+        // 2. Client side: show the host peer ID (or waiting)
+        const hostEntry = Array.from(map.entries()).find(
+            ([id, peer]) =>
+                id !== PEER_ID &&
+                peer.conn.connectionState === "connected" &&
+                knownRoomPeers.get(id)?.role === "proxy",
+        );
+
+        if (hostEntry) {
+            updateClientPeerUI(hostEntry[0]);
+        } else {
+            updateClientPeerUI(null);
+        }
+
+        // ONLY broadcast ready when there is an active CONNECTED WebRTC connection!
+        const hasConnectedPeer = Array.from(map.values()).some(
+            (p) => p.conn.connectionState === "connected",
+        );
+        if (hasConnectedPeer && tunnelChannel) {
+            tunnelChannel.postMessage({ type: "ready", roomId: roomName });
+        }
+    });
+
+    // Helper: wait for a connected peer if ICE negotiation is currently finishing
+    async function waitForConnectedPeer(timeoutMs = 2500): Promise<boolean> {
+        const check = () =>
+            Array.from(Peers.map.values()).some(
+                (p) => p.conn.connectionState === "connected",
+            );
+        if (check()) return true;
+
+        return new Promise((resolve) => {
+            const timer = setTimeout(() => {
+                cleanup();
+                resolve(check());
+            }, timeoutMs);
+
+            const cleanup = Peers.onchange(() => {
+                if (check()) {
+                    clearTimeout(timer);
+                    cleanup();
+                    resolve(true);
+                }
+            });
+        });
+    }
+
+    // Dispatch request to connected peer
+    function dispatchProxyRequest(
+        head: ArrayBuffer,
+        port: MessagePort,
+        hasBody: boolean,
+    ): boolean {
+        for (const [id, peer] of Peers.map) {
+            if (peer.conn.connectionState === "connected") {
+                handleClientProxyRequest(peer.conn, head, port, hasBody);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    async function handleProxyRequestMessage(
+        data: any,
+        ports: readonly MessagePort[],
+    ) {
+        if (data?.type === "PROXY_REQUEST_START") {
+            const { head, hasBody } = data;
+            const reqPort = ports[0];
+            if (head && reqPort) {
+                // If peer is still negotiating (ICE handshake), give it up to 2.5s to finish
+                let sent = dispatchProxyRequest(head, reqPort, hasBody);
+                if (!sent) {
+                    const isReady = await waitForConnectedPeer(2500);
+                    if (isReady) {
+                        sent = dispatchProxyRequest(head, reqPort, hasBody);
+                    }
+                }
+
+                if (!sent) {
+                    console.warn(
+                        "[Hub] No connected WebRTC peer! Sending RESPONSE_ERROR",
+                    );
+                    reqPort.postMessage({ type: "RESPONSE_ERROR" });
+                    reqPort.close();
+                }
+            }
+        }
+    }
+
+    // Register Service Worker and listen for tunnel requests directly
+    async function initServiceWorkerBridge() {
+        if (!("serviceWorker" in navigator)) {
+            console.warn("[Hub] ServiceWorker not supported in this browser");
+            return;
+        }
+
+        try {
+            await navigator.serviceWorker.register("/sw.js", {
+                scope: "/",
+            });
+            await navigator.serviceWorker.ready;
+
+            navigator.serviceWorker.addEventListener("message", (ev) => {
+                handleProxyRequestMessage(ev.data, ev.ports);
+            });
+            console.log(
+                `[Hub] SW registered and listening directly for room '${roomName}'`,
+            );
+        } catch (err) {
+            console.error(
+                "[Hub] Failed to initialize Service Worker bridge:",
+                err,
+            );
+        }
+    }
+
+    initServiceWorkerBridge();
+
+    // Fallback for cross-window messaging if needed
+    window.addEventListener("message", (ev) => {
+        handleProxyRequestMessage(ev.data, ev.ports);
     });
 </script>
 
 <style>
-    .proxy-page-container {
-        min-height: 100vh;
-        max-width: 960px;
+    .proxy-page {
+        max-width: 980px;
         margin: 0 auto;
         padding: 24px 20px;
         display: flex;
         flex-direction: column;
+        gap: 28px;
     }
 
-    /* Header Styling */
+    /* Header */
     .header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding-bottom: 16px;
-        border-bottom: 1px solid var(--border-subtle);
         gap: 16px;
-        flex-wrap: wrap;
     }
 
-    .role-segmented-control {
+    /* Tab Navigation matching room.astro */
+    .tab-nav {
         display: flex;
-        background-color: var(--bg-surface);
-        border: 1px solid var(--border-subtle);
-        border-radius: 8px;
-        padding: 3px;
-        gap: 4px;
+        padding: 4px 0;
+        gap: 8px;
+        width: fit-content;
     }
 
-    .seg-btn {
+    .tab-btn {
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        padding: 0.5rem;
+        color: var(--text-secondary);
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        transition:
+            color 0.15s ease,
+            background-color 0.15s ease;
+    }
+
+    .tab-btn:hover {
+        color: var(--text-primary);
+    }
+
+    .tab-btn.active {
+        text-decoration: underline;
+        color: var(--accent-text);
+    }
+
+    .tab-pane {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .tab-pane[hidden] {
+        display: none;
+    }
+
+    .room-indicator {
+        font-size: 13px;
+        color: var(--text-muted);
+    }
+
+    .room-indicator strong {
+        color: var(--accent-text);
+    }
+
+    .peer-status {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
-        font-family: var(--font-sans);
-        font-size: 12px;
-        font-weight: 500;
-        padding: 6px 12px;
-        border-radius: 6px;
-        border: none;
-        background: transparent;
-        color: var(--text-secondary);
-        cursor: pointer;
-        transition: all 0.15s ease;
-    }
-
-    .seg-btn iconify-icon {
-        font-size: 15px;
-    }
-
-    .seg-btn:hover {
-        color: var(--text-primary);
-        background-color: rgba(255, 255, 255, 0.05);
-    }
-
-    .seg-btn.active {
-        background-color: var(--accent-primary, #6366f1);
-        color: #ffffff;
-        font-weight: 600;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-    }
-
-    .header-right {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-
-    .role-badge {
         font-size: 11px;
-        padding: 4px 8px;
-        border-radius: 6px;
-        background-color: var(--bg-surface);
-        border: 1px solid var(--border-subtle);
+        font-weight: 500;
         color: var(--text-muted);
+        background: transparent;
+        border: none;
+        padding: 0;
     }
 
-    .role-badge.proxy {
-        color: var(--accent-text);
-        border-color: var(--accent-primary);
+    .peer-status.connected {
+        color: #a6e3a1; /* Catppuccin Green */
     }
 
-    .role-badge.client {
-        color: #38bdf8;
-        border-color: #0284c7;
-    }
-
-    .room-badge {
-        font-size: 12px;
-        color: var(--text-muted);
-    }
-
-    .room-badge strong {
-        color: var(--accent-text);
-    }
-
-    /* Connecting Overlay with Logo & Ping Animation */
-    .connecting-overlay {
-        position: fixed;
-        inset: 0;
-        z-index: 999;
-        background-color: var(--bg-surface-elevated, #0f111a);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .connecting-content {
+    /* Content & Cards */
+    .proxy-content {
         display: flex;
         flex-direction: column;
-        align-items: center;
-        gap: 28px;
-        text-align: center;
-    }
-
-    .logo-ping-wrap {
-        position: relative;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 140px;
-        height: 140px;
-    }
-
-    .ping-circle {
-        position: absolute;
-        width: 90px;
-        height: 90px;
-        border-radius: 50%;
-        background-color: var(--accent-primary, #6366f1);
-        opacity: 0.45;
-        animation: pingAnimation 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
-    }
-
-    @keyframes pingAnimation {
-        75%,
-        100% {
-            transform: scale(2.4);
-            opacity: 0;
-        }
-    }
-
-    .connecting-title {
-        font-size: 20px;
-        font-weight: 700;
-        color: var(--text-primary);
-        margin-bottom: 6px;
-    }
-
-    .connecting-status {
-        font-size: 13px;
-        color: var(--text-secondary);
-    }
-
-    /* Dashboard Layout */
-    .proxy-main {
-        margin-top: 24px;
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
     }
 
     .card {
+        width: 100%;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .card-title-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .card-tag {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+    }
+
+    .badge {
+        font-size: 11px;
+        color: var(--accent-text);
+        background: var(--bg-input);
+        padding: 3px 8px;
+        border-radius: 6px;
+        border: 1px solid var(--border-subtle);
+    }
+
+    .field-group {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .field-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .label {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: var(--text-muted);
+    }
+
+    .input {
+        width: 100%;
+        background: var(--bg-input);
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        padding: 10px 14px;
+        color: var(--text-primary);
+        font-size: 13px;
+        outline: none;
+        transition: border-color 0.15s ease;
+    }
+
+    .input:focus {
+        border-color: var(--border-focus);
+    }
+
+    .input-with-action {
+        display: flex;
+        gap: 8px;
+    }
+
+    .hint-text {
+        font-size: 12px;
+        color: var(--text-secondary);
+        line-height: 1.4;
+    }
+
+    .actions-row {
+        margin-top: 14px;
+        width: 100%;
+    }
+
+    /* Two-Column Layout & Peer Panel matching room.astro */
+    .proxy-layout {
+        display: grid;
+        grid-template-columns: 1fr 240px;
+        gap: 24px;
+        align-items: stretch;
+        width: 100%;
+    }
+
+    .client-layout {
+        display: grid;
+        grid-template-columns: 1fr 240px;
+        gap: 24px;
+        align-items: start;
+        width: 100%;
+    }
+
+    .proxy-main-col,
+    .client-main-col {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .peer-panel {
         background-color: var(--bg-surface);
         border: 1px solid var(--border-subtle);
         border-radius: 10px;
-        padding: 22px;
+        padding: 18px;
+        width: 100%;
+        max-width: 240px;
     }
 
-    .card-header {
-        margin-bottom: 12px;
+    .host-peer-panel {
+        display: flex;
+        flex-direction: column;
+        border-radius: 12px;
     }
 
-    .card-title {
+    .client-count-wrapper {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .client-count-number {
+        font-size: 48px;
+        font-weight: 700;
+        color: var(--accent-text);
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .panel-title {
         font-size: 11px;
         font-weight: 700;
         letter-spacing: 0.06em;
         color: var(--text-muted);
         font-family: var(--font-mono);
         text-transform: uppercase;
+        margin-bottom: 14px;
     }
 
-    /* Launcher Card */
-    .launcher-card {
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
+    .peer-name {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--accent-text);
     }
 
-    .launcher-desc {
-        font-size: 13px;
-        color: var(--text-secondary);
-        line-height: 1.5;
-        margin: 0;
-    }
-
-    .launcher-actions {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-
-    .btn-large {
-        padding: 14px 24px;
-        font-size: 15px;
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        text-decoration: none;
-    }
-
-    .tunnel-url-bar {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        background: var(--bg-input);
-        border: 1px solid var(--border-subtle);
-        border-radius: 8px;
-        padding: 6px 10px;
-    }
-
-    .url-label {
-        font-size: 10px;
-        font-weight: 700;
-        color: var(--text-muted);
-        white-space: nowrap;
-    }
-
-    .input-group {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
-
-    .input-label {
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 0.05em;
-        color: var(--text-muted);
-        font-family: var(--font-mono);
-    }
-
-    .text-input {
-        width: 100%;
-        background-color: var(--bg-input);
-        border: 1px solid var(--border-subtle);
-        border-radius: 8px;
-        padding: 10px 12px;
-        color: var(--text-primary);
-        font-size: 13px;
-        outline: none;
-    }
-
-    .text-input:focus {
-        border-color: var(--accent-primary);
-    }
-
-    /* Status Grid */
-    .status-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 12px;
+    .mobile-peer {
+        display: none;
     }
 
     @media (max-width: 720px) {
-        .status-grid {
-            grid-template-columns: repeat(2, 1fr);
+        .proxy-layout,
+        .client-layout {
+            grid-template-columns: 1fr;
+            gap: 14px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .peer-panel {
+            display: none;
+        }
+
+        .mobile-peer {
+            display: block;
+            margin-left: auto;
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            width: fit-content;
+            padding: 8px 14px;
+            border-radius: 8px;
+            margin-bottom: 14px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .mobile-peer-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 13px;
+            color: var(--accent-text);
+            font-weight: 500;
+        }
+
+        .mobile-peer-label .peer-id-val {
+            color: var(--accent-text);
+            font-weight: 700;
         }
     }
 
-    .status-box {
-        background-color: var(--bg-surface);
-        border: 1px solid var(--border-subtle);
-        border-radius: 8px;
-        padding: 14px;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-    }
-
-    .status-label {
-        font-size: 10px;
-        font-weight: 700;
-        color: var(--text-muted);
-        letter-spacing: 0.05em;
-    }
-
-    .status-value {
-        font-size: 12px;
-        color: var(--accent-text);
-        font-weight: 600;
-    }
-
-    /* Buttons */
+    /* Buttons using strict theme tokens */
     .btn {
-        padding: 10px 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 10px 18px;
         border-radius: 8px;
         font-size: 13px;
         font-weight: 600;
         cursor: pointer;
-        border: none;
-        white-space: nowrap;
+        text-decoration: none;
         transition: background-color 0.15s ease;
     }
 
     .btn-primary {
-        background-color: var(--accent-primary);
+        width: 100%;
+        background: var(--accent-primary);
         color: var(--text-on-accent);
     }
 
-    .btn-primary:hover {
-        background-color: var(--accent-primary-hover);
+
+
+    .btn-client-theme {
+        background: #82aaff !important;
+        color: #0d1117 !important;
+        font-weight: 700 !important;
+    }
+
+    .btn-client-theme:hover {
+        background: #6e9bf7 !important;
     }
 
     .btn-secondary {
-        background-color: var(--bg-surface);
+        background: var(--bg-surface-elevated);
         border: 1px solid var(--border-subtle);
         color: var(--text-primary);
+        padding: 8px 14px;
+        outline: none;
+        transition:
+            background-color 0.15s ease,
+            border-color 0.15s ease,
+            color 0.15s ease;
     }
 
     .btn-secondary:hover {
-        background-color: var(--bg-surface-elevated);
+        background: color-mix(in srgb, var(--bg-surface-elevated) 65%, #000000);
+        border-color: var(--border-subtle);
+        color: var(--text-primary);
     }
 
-    /* Table */
-    .table-wrap {
-        overflow-x: auto;
+    .btn-secondary:focus {
+        outline: none;
     }
 
-    .requests-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 12px;
-        text-align: left;
-    }
-
-    .requests-table th {
-        font-family: var(--font-mono);
-        font-size: 10px;
-        color: var(--text-muted);
-        border-bottom: 1px solid var(--border-subtle);
-        padding: 8px 10px;
-    }
-
-    .requests-table td {
-        padding: 10px;
-        border-bottom: 1px solid var(--border-subtle);
-        color: var(--text-secondary);
+    .btn-secondary:focus-visible {
+        outline: 1px solid var(--border-focus);
     }
 
     .mono-font {
         font-family: var(--font-mono);
+    }
+
+    /* Request Log Section */
+    .log-section {
+        margin-top: 2rem;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .log-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 2px;
+    }
+
+    .log-title {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: var(--text-muted);
+    }
+
+    .btn-clear {
+        background: transparent;
+        border: 1px solid var(--border-subtle);
+        color: var(--text-secondary);
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .btn-clear:hover {
+        color: var(--text-primary);
+        border-color: var(--border-focus);
+    }
+
+    .log-grid-container {
+        max-height: 42vh;
+        overflow-y: auto;
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        background: var(--bg-input);
+    }
+
+    .log-empty {
+        padding: 28px 16px;
+        text-align: center;
+        color: var(--text-muted);
+        font-size: 13px;
+    }
+
+    .log-grid {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        min-width: 620px;
+    }
+
+    .log-grid-header {
+        display: grid;
+        grid-template-columns: 48px 68px 60px 1fr 64px;
+        column-gap: 18px;
+        align-items: center;
+        padding: 8px 18px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        color: var(--text-primary);
+        background: var(--bg-surface-elevated);
+        border-bottom: 1px solid var(--border-subtle);
+        position: sticky;
+        top: 0;
+        z-index: 2;
+    }
+
+    /* Target dynamically generated log rows */
+    :global(.log-grid-row) {
+        display: grid;
+        grid-template-columns: 48px 68px 60px 1fr 64px;
+        column-gap: 18px;
+        align-items: center;
+        padding: 7px 18px;
+        font-size: 12px;
+        border-bottom: 1px solid var(--border-subtle);
+        transition: background-color 0.12s ease;
+    }
+
+    :global(.log-grid-row:hover) {
+        background: var(--bg-surface);
+    }
+
+    /* Column Styles & Alignments */
+    .log-grid-header > div {
+        color: var(--text-primary);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+    }
+
+    .log-grid-header > .col-time {
+        text-align: right;
+    }
+
+    /* Row Content Styles */
+    :global(.log-grid-row .col-id) {
+        color: var(--text-muted);
+        font-size: 11px;
+    }
+
+    :global(.log-grid-row .col-status) {
+        font-weight: 600;
+        font-size: 12px;
+    }
+
+    /* Clean colored text for status (no pill badge) */
+    :global(.status-2xx) {
+        color: #a6e3a1;
+    }
+
+    :global(.status-3xx) {
+        color: #89b4fa;
+    }
+
+    :global(.status-4xx) {
+        color: #f9e2af;
+    }
+
+    :global(.status-5xx) {
+        color: #f38ba8;
+    }
+
+    :global(.log-grid-row .col-method) {
+        color: var(--text-primary);
+        font-weight: 600;
+        font-size: 11px;
+    }
+
+    :global(.log-grid-row .col-path) {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--text-secondary);
+        font-size: 12px;
+    }
+
+    :global(.log-grid-row .col-time) {
+        text-align: right;
+        color: var(--text-muted);
+        font-size: 11px;
     }
 </style>

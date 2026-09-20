@@ -5,6 +5,6 @@ import { defineConfig } from "astro/config";
 export default defineConfig({
   server: {
     host: true,
-    allowedHosts: [".trycloudflare.com"],
+    allowedHosts: [".trycloudflare.com", ".localhost:5173"],
   },
 });

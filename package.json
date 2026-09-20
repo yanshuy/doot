@@ -8,10 +8,11 @@
   "scripts": {
     "dev": "astro dev",
     "dev:astro": "astro dev",
+    "build:sw": "esbuild src/js/sw/sw.ts --bundle --outfile=public/sw.js --define:import.meta.env.PUBLIC_BASE_DOMAIN='\"localhost\"'",
     "caddy": "caddy run",
     "caddy:start": "caddy start",
     "caddy:stop": "caddy stop",
-    "build": "astro build",
+    "build": "pnpm run build:sw && astro build",
     "preview": "astro preview",
     "astro": "astro"
   },

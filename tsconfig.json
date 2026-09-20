@@ -6,6 +6,6 @@
   ],
   "exclude": [
     "dist",
-    "src/js/sw"
+    "src/js/legacy"
   ]
 }

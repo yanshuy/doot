@@ -1,8 +1,13 @@
-import { setupSW } from "./sw/setup";
-import { deserializeRequest, serializeResponse } from "./sw/http";
-import { PEER_ID } from "./peerId";
-import { STUN_SERVERS, type Signal } from "../transfer/protocol";
-import { SIGNAL_SERVER_URL } from "./signaling";
+import { setupSW } from "../sw/setup";
+import { deserializeRequest, serializeResponse } from "../proxy/http";
+import {
+  REQUEST_BODY_CHUNK,
+  REQUEST_END as REQUEST_BODY_END,
+  PROXY_RESPONSE_PLACEHOLDER,
+} from "../proxy/http";
+import { PEER_ID } from "../peerId";
+import { STUN_SERVERS, type Signal } from "../../transfer/protocol";
+import { SIGNAL_SERVER_URL } from "../signaling";
 
 export type PeerRole = "proxy" | "client";
 
@@ -88,11 +93,10 @@ export class P2PProxyManager {
     this.requestsEl = options.requestsEl;
     this.swStatusEl = options.swStatusEl;
 
-    // Register Service Worker for /tunnel interception
+    // Register Service Worker for streaming request interception
     setupSW(
-      (serialized) => this.tunnelRequest(serialized),
+      (reqId, head, port, hasBody) => this.handleClientProxyRequest(reqId, head, port, hasBody),
       this.swStatusEl,
-      this.requestsEl
     );
   }
 
@@ -473,9 +477,149 @@ export class P2PProxyManager {
       return;
     }
 
+    if (dc.label.startsWith("req-")) {
+      this.setupIncomingRequestChannel(fromPeerId, dc);
+      return;
+    }
+
     if (dc.label === "tunnel_data" || dc.label === "http") {
       this.setupTunnelChannel(fromPeerId, dc);
       return;
+    }
+  }
+
+  // Host: Handles a newly opened dynamic request channel from a client
+  private setupIncomingRequestChannel(fromPeerId: string, dc: RTCDataChannel): void {
+    dc.binaryType = "arraybuffer";
+    let isHeaderParsed = false;
+    let method = "GET";
+    let path = "/";
+    let headers = new Headers();
+    let bodyController: ReadableStreamDefaultController | null = null;
+
+    dc.onmessage = async (ev) => {
+      if (!(ev.data instanceof ArrayBuffer)) return;
+      const data = new Uint8Array(ev.data);
+
+      if (!isHeaderParsed) {
+        // Find \r\n\r\n
+        let headerEndIndex = -1;
+        for (let i = 0; i < data.length - 3; i++) {
+          if (data[i] === 13 && data[i + 1] === 10 && data[i + 2] === 13 && data[i + 3] === 10) {
+            headerEndIndex = i;
+            break;
+          }
+        }
+
+        if (headerEndIndex === -1) {
+          console.warn("[ProxyHost] Invalid request header received on dynamic channel");
+          dc.close();
+          return;
+        }
+
+        const headStr = new TextDecoder().decode(data.subarray(0, headerEndIndex));
+        const lines = headStr.split(/\r?\n/);
+        const [reqMethod, reqPath] = (lines[0] || "").split(" ");
+        method = reqMethod || "GET";
+        path = reqPath || "/";
+
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i];
+          if (!line) continue;
+          const colonIdx = line.indexOf(":");
+          if (colonIdx !== -1) {
+            headers.append(line.slice(0, colonIdx).trim(), line.slice(colonIdx + 1).trim());
+          }
+        }
+
+        isHeaderParsed = true;
+
+        const bodyStream = (method !== "GET" && method !== "HEAD")
+          ? new ReadableStream({
+            start(controller) {
+              bodyController = controller;
+            },
+          })
+          : null;
+
+        // Any initial body bytes that arrived with the header packet
+        const initialBody = data.subarray(headerEndIndex + 4);
+        if (initialBody.byteLength > 0 && bodyController) {
+          bodyController.enqueue(initialBody);
+        }
+
+        // Execute fetch to target local app
+        this.executeHostFetch(dc, method, path, headers, bodyStream);
+      } else {
+        // Subsequent body chunk
+        if (bodyController) {
+          bodyController.enqueue(data);
+        }
+      }
+    };
+
+    dc.onclose = () => {
+      if (bodyController) {
+        try {
+          bodyController.close();
+        } catch (e) { }
+      }
+    };
+  }
+
+  // Host: Executes fetch to local target app (e.g. http://localhost:4321)
+  private async executeHostFetch(
+    dc: RTCDataChannel,
+    method: string,
+    path: string,
+    headers: Headers,
+    bodyStream: ReadableStream | null,
+  ): Promise<void> {
+    try {
+      const cleanHost = this.targetHost.replace(/\/+$/, "");
+      const cleanPath = path.startsWith("/") ? path : "/" + path;
+      const targetUrl = `${cleanHost}${cleanPath}`;
+
+      this.requestCounter++;
+      this.logHostRequestTable(this.requestCounter, method, cleanPath, headers);
+
+      const cleanHeaders = new Headers();
+      headers.forEach((v, k) => {
+        const lower = k.toLowerCase();
+        if (
+          lower === "host" ||
+          lower === "origin" ||
+          lower === "referer" ||
+          lower === "content-length" ||
+          lower === "connection" ||
+          lower === "transfer-encoding" ||
+          lower === "keep-alive" ||
+          lower.startsWith("sec-") ||
+          lower.startsWith("proxy-")
+        ) {
+          return;
+        }
+        try {
+          cleanHeaders.set(k, v);
+        } catch (e) { }
+      });
+
+      const localResponse = await fetch(targetUrl, {
+        method,
+        headers: cleanHeaders,
+        body: bodyStream ? (bodyStream as any) : undefined,
+        // @ts-ignore
+        duplex: bodyStream ? "half" : undefined,
+        mode: "cors",
+      });
+
+      console.log(`[ProxyHost] Fetched ${method} ${targetUrl} -> status ${localResponse.status}`);
+
+      // PLACEHOLDER: Hollow stub for next phase (Response Proxying)
+      // We will stream localResponse back across `dc` in the next phase!
+    } catch (err: any) {
+      console.error("[ProxyHost] Failed local fetch:", err);
+      dc.close();
     }
   }
 
@@ -503,7 +647,7 @@ export class P2PProxyManager {
       if (ctrl.readyState === "open") {
         try {
           ctrl.send(metaStr);
-        } catch (e) {}
+        } catch (e) { }
       }
     }
   }
@@ -564,7 +708,7 @@ export class P2PProxyManager {
         }
         try {
           cleanHeaders.set(k, v);
-        } catch (e) {}
+        } catch (e) { }
       });
       cleanHeaders.set("X-Doot-Loopback", "true");
 
@@ -589,7 +733,7 @@ export class P2PProxyManager {
             const relPath = locUrl.pathname.startsWith("/tunnel") ? locUrl.pathname : "/tunnel" + locUrl.pathname;
             resHeaders.set("location", relPath + locUrl.search + locUrl.hash);
           }
-        } catch (e) {}
+        } catch (e) { }
       }
 
       const cleanRes = new Response(await localResponse.arrayBuffer(), {
@@ -653,41 +797,60 @@ export class P2PProxyManager {
     }
   }
 
-  // Client Mode: Multiplex intercepted request over the persistent DataChannel
-  public async tunnelRequest(serializedReq: ArrayBuffer): Promise<ArrayBuffer> {
+  // Client Mode: Handles a new intercepted request from the Service Worker
+  public handleClientProxyRequest(
+    reqId: number,
+    head: ArrayBuffer,
+    port: MessagePort,
+    hasBody: boolean
+  ): void {
     const proxyPeerId = this.findAvailableProxyPeer();
     if (!proxyPeerId) {
-      return encoder.encode(TUNNEL_UNAVAILABLE_RESPONSE).buffer;
+      port.postMessage({ type: "PROXY_RESPONSE_PLACEHOLDER" });
+      port.close();
+      return;
     }
 
-    const dc = this.tunnelChannels.get(proxyPeerId);
-    if (!dc || dc.readyState !== "open") {
-      return encoder.encode(TUNNEL_UNAVAILABLE_RESPONSE).buffer;
+    const pc = this.peerConnections.get(proxyPeerId);
+    if (!pc || pc.connectionState !== "connected") {
+      port.postMessage({ type: "PROXY_RESPONSE_PLACEHOLDER" });
+      port.close();
+      return;
     }
 
-    const reqId = this.clientRequestId++;
+    // 1. Create a dynamic DataChannel dedicated to this request
+    const dc = pc.createDataChannel(`req-${reqId}`, { ordered: true });
+    dc.binaryType = "arraybuffer";
 
-    return new Promise<ArrayBuffer>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pendingRequests.delete(reqId);
-        resolve(
-          encoder.encode(
-            "HTTP/1.1 504 Gateway Timeout\r\nContent-Type: text/html\r\n\r\n<!DOCTYPE html><html><head><title>504 Gateway Timeout</title></head><body style=\"font-family:system-ui,sans-serif;padding:2rem;background:#0f111a;color:#e2e8f0;\"><h1 style=\"color:#f87171;\">504 Gateway Timeout</h1><p>P2P Host did not respond in time over WebRTC.</p></body></html>"
-          ).buffer
-        );
-      }, 15000);
+    dc.onopen = () => {
+      // Send the HTTP request header block first
+      dc.send(head);
 
-      this.pendingRequests.set(reqId, (res) => {
-        clearTimeout(timer);
-        resolve(res);
-      });
+      // Listen for body chunks from the Service Worker port
+      port.onmessage = (ev) => {
+        if (ev.data.type === REQUEST_BODY_CHUNK) {
+          if (dc.readyState === "open") {
+            dc.send(ev.data.buffer);
+          }
+        } else if (ev.data.type === REQUEST_BODY_END) {
+          // Request body finished
+        }
+      };
+    };
 
-      this.sendFramedPayload(dc, reqId, serializedReq).catch(() => {
-        clearTimeout(timer);
-        this.pendingRequests.delete(reqId);
-        reject(encoder.encode(TUNNEL_ERROR_RESPONSE).buffer);
-      });
-    });
+    // PLACEHOLDER: Hollow stub for next phase (Response Proxying)
+    // When host sends response chunks on `dc`, we will forward them to `port`
+    dc.onmessage = (ev) => {
+      // Hollow stub for response phase
+    };
+
+    dc.onclose = () => {
+      port.close();
+    };
+
+    dc.onerror = () => {
+      port.close();
+    };
   }
 
   private findAvailableProxyPeer(): string | null {

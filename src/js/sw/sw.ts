@@ -1,6 +1,41 @@
-import { deserializeResponse, serializeRequest } from "./http";
+import {
+  REQUEST_BODY_CHUNK,
+  REQUEST_END,
+  REQUEST_ERROR,
+
+  RESPONSE_HEADER,
+  RESPONSE_BODY_CHUNK,
+  RESPONSE_END,
+  RESPONSE_ERROR,
+
+  parseResponseHead,
+  serializeRequestHeader,
+} from "../proxy/http";
+import { getConnectingPromptHtml, getBadGatewayHtml } from "./templates";
+
+//control message
+export const PROXY_RESPONSE_PLACEHOLDER = "PROXY_RESPONSE_PLACEHOLDER";
+export const PROXY_REQUEST_START = "PROXY_REQUEST_START";
+export const REQUEST_BODY_START = "REQUEST_BODY_START";
 
 const sw = self as unknown as ServiceWorkerGlobalScope & typeof globalThis;
+
+async function getProxyClient(roomId: string): Promise<Client | null> {
+  const clients = await sw.clients.matchAll({ type: "window", includeUncontrolled: true });
+  return (
+    clients.find((c) => {
+      try {
+        const u = new URL(c.url);
+        return (
+          u.pathname === "/proxy" &&
+          (u.searchParams.get("name") === roomId || u.searchParams.get("room") === roomId)
+        );
+      } catch {
+        return false;
+      }
+    }) || null
+  );
+}
 
 sw.addEventListener("install", () => {
   sw.skipWaiting();
@@ -10,207 +45,201 @@ sw.addEventListener("activate", (ev) => {
   ev.waitUntil(sw.clients.claim());
 });
 
-let requestId = 1;
-const responseResolvers = new Map<number, (value: Response) => void>();
-const TUNNEL_PREFIX = "/tunnel";
-const P2P_TUNNEL_PREFIX = "/p2p-tunnel";
-
-// Track window client IDs that belong to the tunneled application
-const tunneledClientIds = new Set<string>();
-
-async function isTunneledClient(clientId?: string): Promise<boolean> {
-  if (!clientId) return false;
-  if (tunneledClientIds.has(clientId)) return true;
-  try {
-    const client = await sw.clients.get(clientId);
-    if (
-      client &&
-      (client.url.includes(TUNNEL_PREFIX) || client.url.includes(P2P_TUNNEL_PREFIX))
-    ) {
-      tunneledClientIds.add(clientId);
-      return true;
-    }
-  } catch (e) {}
-  return false;
+// Parses ?doot_tunnel=roomId and returns targetPath
+export function parseTunnelRoute(
+  url: URL,
+): { roomId: string; targetPath: string } | null {
+  const queryRoom = url.searchParams.get("doot_tunnel");
+  if (queryRoom) {
+    const cleanParams = new URLSearchParams(url.search);
+    cleanParams.delete("doot_tunnel");
+    const queryStr = cleanParams.toString();
+    const targetPath = url.pathname + (queryStr ? `?${queryStr}` : "");
+    return { roomId: queryRoom, targetPath };
+  }
+  return null;
 }
 
 sw.addEventListener("fetch", (ev) => {
-  // Prevent loopback if host proxy fetch originates from the same browser context
-  if (ev.request.headers.has("X-Doot-Loopback")) {
-    return;
-  }
-
   const url = new URL(ev.request.url);
+  if (url.origin != sw.location.origin) return;
 
-  // 1. External origins bypass
-  if (url.origin !== sw.location.origin) {
-    return;
-  }
+  // Never intercept the service worker script itself
+  if (url.pathname === "/sw.js") return;
 
-  // 2. Doot controller pages and service worker script bypass
-  if (
-    url.pathname.startsWith("/proxy") ||
-    url.pathname.startsWith("/room") ||
-    url.pathname === "/sw.js" ||
-    url.pathname === "/" ||
-    url.pathname === "/index.html"
-  ) {
-    return;
-  }
+  ev.respondWith(handleFetch(ev, url));
+});
 
-  // 3. Top-level Document Navigation
-  if (ev.request.mode === "navigate") {
-    ev.respondWith(
-      (async () => {
-        const isExplicitTunnelPath =
-          url.pathname.startsWith(TUNNEL_PREFIX) ||
-          url.pathname.startsWith(P2P_TUNNEL_PREFIX);
+async function handleFetch(ev: FetchEvent, url: URL): Promise<Response> {
+  let roomId: string | null = null;
+  let targetPath: string | null = null;
 
-        const isFromTunneledTab =
-          ev.clientId && (await isTunneledClient(ev.clientId));
-
-        const isFromTunneledReferrer =
-          ev.request.referrer &&
-          (ev.request.referrer.includes(TUNNEL_PREFIX) ||
-            ev.request.referrer.includes(P2P_TUNNEL_PREFIX)) &&
-          !ev.request.referrer.includes("/proxy") &&
-          !ev.request.referrer.includes("/room");
-
-        if (isExplicitTunnelPath || isFromTunneledTab || isFromTunneledReferrer) {
-          if (ev.resultingClientId) {
-            tunneledClientIds.add(ev.resultingClientId);
+  const tunnelRoute = parseTunnelRoute(url);
+  if (tunnelRoute) {
+    roomId = tunnelRoute.roomId;
+    targetPath = tunnelRoute.targetPath;
+  } else {
+    // 1. Query the browser's native window client registry using ev.clientId
+    if (ev.clientId) {
+      try {
+        const client = await sw.clients.get(ev.clientId);
+        if (client) {
+          const clientRoute = parseTunnelRoute(new URL(client.url));
+          if (clientRoute) {
+            roomId = clientRoute.roomId;
+            targetPath = url.pathname + url.search;
           }
-          return await tunnelRequest(ev);
         }
+      } catch { }
+    }
 
-        // Pass through standard Doot navigation
-        return await fetch(ev.request);
-      })()
-    );
-    return;
+    // 2. Fallback: check Referer header
+    if (!roomId) {
+      const referer = ev.request.headers.get("referer");
+      if (referer) {
+        try {
+          const refRoute = parseTunnelRoute(new URL(referer));
+          if (refRoute) {
+            roomId = refRoute.roomId;
+            targetPath = url.pathname + url.search;
+          }
+        } catch { }
+      }
+    }
   }
 
-  // 4. Sub-resources (CSS, JS, images, fonts, API calls)
-  ev.respondWith(
-    (async () => {
-      // Check if the request was initiated by a tunneled window tab
-      if (ev.clientId && (await isTunneledClient(ev.clientId))) {
-        return await tunnelRequest(ev);
-      }
+  // Not a tunnel request or from a tunneled page
+  if (!roomId || !targetPath) {
+    return fetch(ev.request);
+  }
 
-      // Check if the URL explicitly targets the tunnel prefix
-      if (
-        url.pathname.startsWith(TUNNEL_PREFIX) ||
-        url.pathname.startsWith(P2P_TUNNEL_PREFIX)
-      ) {
-        if (ev.clientId) {
-          tunneledClientIds.add(ev.clientId);
-        }
-        return await tunnelRequest(ev);
-      }
+  // If a document link click navigates to /guides (without ?doot_tunnel=),
+  // retain ?doot_tunnel=roomId in the address bar so the user can refresh anytime!
+  if (ev.request.mode === "navigate" && !url.searchParams.has("doot_tunnel")) {
+    const nextUrl = new URL(url.toString());
+    nextUrl.searchParams.set("doot_tunnel", roomId);
+    return Response.redirect(nextUrl.toString(), 302);
+  }
 
-      // Referrer fallback for sub-resources
-      if (
-        ev.request.referrer &&
-        (ev.request.referrer.includes(TUNNEL_PREFIX) ||
-          ev.request.referrer.includes(P2P_TUNNEL_PREFIX)) &&
-        !ev.request.referrer.includes("/proxy") &&
-        !ev.request.referrer.includes("/room")
-      ) {
-        if (ev.clientId) {
-          tunneledClientIds.add(ev.clientId);
-        }
-        return await tunnelRequest(ev);
-      }
+  const proxyClient = await getProxyClient(roomId);
 
-      // Pass through local Doot assets
-      return await fetch(ev.request);
-    })()
+  if (!proxyClient) {
+    const proxyUrl = `${url.origin}/proxy?name=${encodeURIComponent(roomId)}&mode=client`;
+    return new Response(getConnectingPromptHtml(roomId, proxyUrl), {
+      status: 503,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
+  }
+
+  return tunnelRequest(ev, proxyClient, targetPath);
+}
+
+async function tunnelRequest(
+  ev: FetchEvent,
+  proxyClient: Client,
+  targetPath: string,
+): Promise<Response> {
+  const headBytes = serializeRequestHeader(ev.request, targetPath);
+  const msgChannel = new MessageChannel();
+  const localPort = msgChannel.port1;
+  const remotePort = msgChannel.port2;
+  const body = ev.request.body;
+
+  proxyClient.postMessage(
+    {
+      type: PROXY_REQUEST_START,
+      head: headBytes.buffer,
+      hasBody: body != null,
+    },
+    [remotePort, headBytes.buffer],
   );
-});
 
-sw.addEventListener("message", (ev) => {
-  if (ev.data && ev.data.type === "response") {
-    const { id, serialized } = ev.data as {
-      id: number;
-      serialized: ArrayBuffer;
+  return responsePromise(localPort, body);
+}
+
+function responsePromise(
+  port: MessagePort,
+  body: ReadableStream<Uint8Array<ArrayBuffer>> | null,
+) {
+  return new Promise<Response>((resolve, reject) => {
+    let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
+
+    const responseStream = new ReadableStream<Uint8Array>({
+      start(controller) { streamController = controller },
+    });
+
+    port.onmessage = (event) => {
+      switch (event.data.type) {
+        case REQUEST_BODY_START: {
+          if (body) {
+            const reader = body.getReader();
+            readLoop(reader, port);
+          }
+          break;
+        }
+
+        case RESPONSE_HEADER: {
+          const data = new Uint8Array(event.data.buffer);
+          const parsed = parseResponseHead(data);
+          if (parsed) {
+            resolve(
+              new Response(responseStream, {
+                status: parsed.status,
+                statusText: parsed.statusText,
+                headers: parsed.headers,
+              }),
+            );
+          }
+          break;
+        }
+
+        case RESPONSE_BODY_CHUNK: {
+          streamController?.enqueue(new Uint8Array(event.data.buffer));
+          break;
+        }
+
+        case RESPONSE_END: {
+          streamController?.close();
+          port.close();
+          break;
+        }
+
+        case RESPONSE_ERROR: {
+          if (streamController) {
+            streamController.error(new Error("P2P Stream Error"));
+          }
+          port.close();
+          resolve(
+            new Response(getBadGatewayHtml(), {
+              status: 502,
+              headers: { "Content-Type": "text/html; charset=utf-8" },
+            }),
+          );
+          break;
+        }
+      }
     };
-    const res = deserializeResponse(serialized);
-
-    const resolve = responseResolvers.get(id);
-    if (!resolve) {
-      console.warn(`[SW] Received response with unknown id ${id}`);
-      return;
-    }
-
-    resolve(res);
-    responseResolvers.delete(id);
-  }
-});
-
-async function getTunnelClient() {
-  const clients = await sw.clients.matchAll({ type: "window", includeUncontrolled: true });
-  return clients.find((client) => {
-    try {
-      const url = new URL(client.url);
-      return url.pathname.startsWith("/proxy");
-    } catch (e) {
-      return false;
-    }
+    port.start();
   });
 }
 
-async function tunnelRequest(ev: FetchEvent): Promise<Response> {
-  const tc = await getTunnelClient();
-  if (!tc) {
-    return new Response(
-      "<!DOCTYPE html><html><head><title>503 Service Unavailable</title></head><body style=\"font-family:system-ui,sans-serif;padding:2rem;background:#0f111a;color:#e2e8f0;\">" +
-        "<h1 style=\"color:#f87171;\">503: Service Unavailable</h1>" +
-        "<p>No active P2P Proxy controller tab found. Please open the <a href=\"/proxy\" style=\"color:#60a5fa;\">Proxy Control Page</a>.</p></body></html>",
-      { status: 503, headers: new Headers({ "Content-Type": "text/html; charset=utf-8" }) },
-    );
-  }
-
-  const { method, url, headers } = ev.request;
-  const headersList: [string, string][] = [];
-  headers.forEach((value, key) => {
-    headersList.push([key, value]);
-  });
-  const hasBody = ev.request.body !== null;
-  const serialized = await serializeRequest(ev.request);
-
-  const currentId = requestId++;
-  const resPromise = new Promise<Response>((resolve) => {
-    const timer = setTimeout(() => {
-      responseResolvers.delete(currentId);
-      resolve(
-        new Response(
-          "<!DOCTYPE html><html><head><title>504 Gateway Timeout</title></head><body style=\"font-family:system-ui,sans-serif;padding:2rem;background:#0f111a;color:#e2e8f0;\">" +
-            "<h1 style=\"color:#f87171;\">504: Gateway Timeout</h1>" +
-            "<p>P2P Host did not respond in time over WebRTC. Make sure your Proxy Host is active and connected in the room.</p></body></html>",
-          { status: 504, headers: new Headers({ "Content-Type": "text/html; charset=utf-8" }) }
-        )
+async function readLoop(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  localPort: MessagePort,
+) {
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        localPort.postMessage({ type: REQUEST_END });
+        break;
+      }
+      localPort.postMessage(
+        { type: REQUEST_BODY_CHUNK, buffer: value.buffer },
+        [value.buffer],
       );
-    }, 15000);
-
-    responseResolvers.set(currentId, (res) => {
-      clearTimeout(timer);
-      resolve(res);
-    });
-  });
-
-  tc.postMessage(
-    {
-      type: "request",
-      id: currentId,
-      method,
-      url,
-      headersList,
-      hasBody,
-      serialized,
-    },
-    [serialized],
-  );
-
-  return await resPromise;
+    }
+  } catch (e) {
+    localPort.postMessage({ type: REQUEST_ERROR });
+  }
 }
