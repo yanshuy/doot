@@ -1,51 +1,8 @@
 import { BUFFER_LOW_THRESHOLD, CRLF, createDataChannelSink, parseRequestHead } from "./utils";
-import { parse, serialize } from "cookie-es";
-export { parse as parseCookie, serialize as serializeCookie };
-
 const encoder = new TextEncoder();
 
 let targetHost = "http://localhost:4322";
 let hostReqCounter = 0;
-
-export const HostCookieJar = {
-  enabled: true,
-  jar: new Map<string, string>(),
-
-  setEnabled(enabled: boolean) {
-    this.enabled = enabled;
-  },
-
-  clear() {
-    this.jar.clear();
-  },
-
-  setCookie(name: string, value: string) {
-    this.jar.set(name, value);
-  },
-
-  getCookie(name: string): string | undefined {
-    return this.jar.get(name);
-  },
-
-  parseAndStore(cookieString: string | null) {
-    if (!this.enabled || !cookieString) return;
-    const parsed = parse(cookieString);
-    for (const [k, v] of Object.entries(parsed)) {
-      if (v !== undefined) {
-        this.jar.set(k, v);
-      }
-    }
-  },
-
-  getHeader(): string | null {
-    if (!this.enabled || this.jar.size === 0) return null;
-    const pairs: string[] = [];
-    this.jar.forEach((v, k) => {
-      pairs.push(serialize(k, v));
-    });
-    return pairs.join("; ");
-  },
-};
 
 
 export function setTargetHost(host: string): void {
@@ -147,30 +104,14 @@ async function executeHostFetch(
       fetchHeaders.set("Referer", `${targetHost}/`);
     }
 
-    // Attach cookies from proxy Cookie Jar if enabled
-    const jarCookies = HostCookieJar.getHeader();
-    if (jarCookies) {
-      const existingCookie = fetchHeaders.get("cookie");
-      fetchHeaders.set("cookie", existingCookie ? `${existingCookie}; ${jarCookies}` : jarCookies);
-    }
-
     const startTime = performance.now();
     const localResponse = await fetch(targetUrl, {
       method,
       headers: fetchHeaders,
       body,
-      credentials: "include",
       // @ts-ignore
       duplex: body instanceof ReadableStream ? "half" : undefined,
     });
-
-    // Store any Set-Cookie headers returned if exposed by the server
-    try {
-      const setCookie = localResponse.headers.get("set-cookie");
-      if (setCookie) {
-        HostCookieJar.parseAndStore(setCookie);
-      }
-    } catch {}
 
     const durationMs = Math.round(performance.now() - startTime);
     RequestLogs.add({
