@@ -37,10 +37,9 @@ export function setupHostChannel(
         return;
       }
 
-      const { method, path, headers, contentLength, isChunked } = parsed;
-      const hasBody = (contentLength && contentLength > 0) || isChunked;
+      const { method, path, headers, hasBody } = parsed;
 
-      if (!hasBody || method === "GET" || method === "HEAD") {
+      if (!hasBody) {
         executeHostFetch(dc, targetHost, method, path, headers);
         return;
       }
@@ -84,6 +83,7 @@ async function executeHostFetch(
 
     // Set Host header and rewrite Referer to target server so Vite / Astro dev server can resolve module references
     const fetchHeaders = new Headers(headers);
+    fetchHeaders.delete("x-doot-has-body");
     try {
       const parsedHost = new URL(targetHost).host;
       fetchHeaders.set("Host", parsedHost);
@@ -164,26 +164,40 @@ async function executeHostFetch(
         });
       }
       if (dc.readyState === "open") {
-        const isCorsOrNetwork = err?.name === "TypeError" && err?.message === "Failed to fetch";
         const currentOrigin = window.location.origin;
-        const errorHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>502 Bad Gateway</title></head><body style="font-family:system-ui,-apple-system,sans-serif;padding:36px;background:#181825;color:#cdd6f4;line-height:1.5;max-width:720px;margin:0 auto;">` +
-          `<h2 style="color:#f38ba8;margin-top:0;">502 Bad Gateway</h2>` +
-          `<p>The Host failed to connect to local target server at <code style="background:#313244;padding:2px 6px;border-radius:4px;">${targetHost}</code>.</p>` +
-          `<p style="color:#a6adc8;font-size:13px;">Error: <code style="color:#f38ba8;">${err?.message || "Connection refused"}</code></p>` +
-          (isCorsOrNetwork ?
-            `<div style="background:#313244;border-left:4px solid #f9e2af;padding:12px 16px;margin:20px 0;border-radius:4px;font-size:13px;">` +
-            `<strong style="color:#f9e2af;">⚠️ Why "Failed to fetch"? (CORS / Private Network Access):</strong>` +
-            `<ul style="margin:8px 0 0;padding-left:20px;color:#cdd6f4;">` +
-            `<li><strong>Local Server Not Running:</strong> Ensure your local dev server is running on <code style="color:#89b4fa;">${targetHost}</code>.</li>` +
-            `<li><strong>CORS / PNA Headers Missing:</strong> Because the host tab is on <code style="color:#89b4fa;">${currentOrigin}</code>, requests to <code style="color:#89b4fa;">localhost</code> require CORS and Private Network Access headers on your local server.</li>` +
-            `</ul>` +
-            `<div style="margin-top:12px;color:#a6adc8;"><strong>Required Headers on your local server:</strong><pre style="background:#1e1e2e;padding:10px;border-radius:6px;overflow-x:auto;color:#a6e3a1;margin:6px 0 0;">Access-Control-Allow-Origin: ${currentOrigin}
+        const isCorsOrNetwork = err?.name === "TypeError" && err?.message === "Failed to fetch";
+        const errorHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>502 Bad Gateway</title>
+</head>
+<body style="font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;padding:36px;background:#292d3e;color:#eef0f7;margin:0;line-height:1.5;">
+  <h2 style="color:#f38ba8;margin:0 0 12px;font-size:20px;font-weight:600;">502 Bad Gateway</h2>
+  <p style="margin:0 0 4px;font-size:14px;color:#eef0f7;">The Host failed to connect to local target server at <code style="font-family:ui-monospace,Menlo,monospace;background:#222436;padding:2px 6px;border-radius:4px;color:#89b4fa;">${targetHost}</code>.</p>
+  <p style="color:#a3a8c2;font-size:13px;margin:0 0 16px;">Error: <code style="font-family:ui-monospace,Menlo,monospace;color:#f38ba8;">${err?.message || "Connection refused"}</code></p>
+  ${isCorsOrNetwork ? `
+  <div style="background:#323752;border:1px solid #40456866;border-radius:8px;padding:16px;margin:16px 0;max-width:640px;">
+    <div style="color:#eef0f7;font-size:13px;font-weight:600;margin-bottom:8px;">CORS / Private Network Access Required</div>
+    <p style="color:#a3a8c2;font-size:13px;margin:0 0 8px;">Because the host tab is on <code style="font-family:ui-monospace,Menlo,monospace;color:#89b4fa;">${currentOrigin}</code>, requests to localhost require CORS and Private Network Access headers on your local server:</p>
+    <pre style="font-family:ui-monospace,Menlo,monospace;font-size:12px;background:#222436;border:1px solid #40456866;border-radius:6px;padding:10px 12px;color:#89b4fa;margin:0;overflow-x:auto;">Access-Control-Allow-Origin: ${currentOrigin}
 Access-Control-Allow-Private-Network: true
 Access-Control-Allow-Methods: *
-Access-Control-Allow-Headers: *</pre></div>` +
-            `</div>` : "") +
-          `<p style="margin-top:24px;"><button style="padding:8px 16px;background:#89b4fa;color:#11111b;border:none;border-radius:6px;cursor:pointer;font-weight:600;" onclick="window.location.reload()">Retry</button></p>` +
-          `</body></html>`;
+Access-Control-Allow-Headers: *</pre>
+  </div>` : ""}
+  <p style="margin:20px 0 0;">
+    <button style="padding:8px 16px;background:#89b4fa;color:#11111b;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;" onclick="window.location.reload()">Retry</button>
+  </p>
+  <script>
+    const channel = new BroadcastChannel("doot_tunnel");
+    channel.onmessage = (e) => {
+      if (e.data?.type === "ready") {
+        window.location.reload();
+      }
+    };
+  </script>
+</body>
+</html>`;
         const bodyBuf = encoder.encode(errorHtml);
         const errHead = `HTTP/1.1 502 Bad Gateway${CRLF}Content-Type: text/html; charset=utf-8${CRLF}Content-Length: ${bodyBuf.byteLength}${CRLF}Connection: close${CRLF}${CRLF}`;
         dc.send(encoder.encode(errHead));

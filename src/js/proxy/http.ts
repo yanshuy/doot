@@ -22,6 +22,7 @@ export interface RequestHead {
   headers: Headers;
   contentLength?: number;
   isChunked: boolean;
+  hasBody: boolean;
 }
 
 function parseRawHead(data: Uint8Array): { startLine: string; headers: Headers } | null {
@@ -72,6 +73,9 @@ export function parseRequestHead(data: Uint8Array): RequestHead | null {
   const contentLengthStr = parsed.headers.get("content-length");
   const contentLength = contentLengthStr ? parseInt(contentLengthStr, 10) : undefined;
   const isChunked = parsed.headers.get("transfer-encoding") === "chunked";
+  const hasBody =
+    parsed.headers.get("x-doot-has-body") === "1" ||
+    (contentLength && contentLength > 0) || isChunked;
 
   return {
     method,
@@ -79,6 +83,7 @@ export function parseRequestHead(data: Uint8Array): RequestHead | null {
     headers: parsed.headers,
     contentLength,
     isChunked,
+    hasBody,
   };
 }
 
@@ -103,11 +108,19 @@ export function parseResponseHead(data: Uint8Array<ArrayBuffer>): ResponseHead |
   };
 }
 
-export function serializeRequestHeader(req: Request, overridePath?: string): Uint8Array<ArrayBuffer> {
+export function serializeRequestHeader(
+  req: Request,
+  overridePath?: string,
+  hasBody: boolean = req.body != null,
+): Uint8Array<ArrayBuffer> {
   const url = new URL(req.url);
   const pathToSend = overridePath ?? `${url.pathname}${url.search}`;
   const requestLine = `${req.method} ${pathToSend} HTTP/1.1`;
   const headerFields: string[] = [];
+
+  if (hasBody) {
+    headerFields.push("X-Doot-Has-Body: 1");
+  }
 
   req.headers.forEach((val, key) => {
     const lower = key.toLowerCase();

@@ -77,21 +77,17 @@ async function handleFetch(ev: FetchEvent, url: URL): Promise<Response> {
     roomId = tunnelRoute.roomId;
     targetPath = tunnelRoute.targetPath;
   } else {
-    // 1. Query the browser's native window client registry using ev.clientId
     if (ev.clientId) {
-      try {
-        const client = await sw.clients.get(ev.clientId);
-        if (client) {
-          const clientRoute = parseTunnelRoute(new URL(client.url));
-          if (clientRoute) {
-            roomId = clientRoute.roomId;
-            targetPath = url.pathname + url.search;
-          }
+      const client = await sw.clients.get(ev.clientId);
+      if (client) {
+        const clientRoute = parseTunnelRoute(new URL(client.url));
+        if (clientRoute) {
+          roomId = clientRoute.roomId;
+          targetPath = url.pathname + url.search;
         }
-      } catch { }
+      }
     }
 
-    // 2. Fallback: check Referer header
     if (!roomId) {
       const referer = ev.request.headers.get("referer");
       if (referer) {
@@ -111,8 +107,6 @@ async function handleFetch(ev: FetchEvent, url: URL): Promise<Response> {
     return fetch(ev.request);
   }
 
-  // If a document link click navigates to /guides (without ?doot_tunnel=),
-  // retain ?doot_tunnel=roomId in the address bar so the user can refresh anytime!
   if (ev.request.mode === "navigate" && !url.searchParams.has("doot_tunnel")) {
     const nextUrl = new URL(url.toString());
     nextUrl.searchParams.set("doot_tunnel", roomId);
