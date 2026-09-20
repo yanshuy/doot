@@ -26,6 +26,7 @@
     "@astrojs/check": "^0.9.10",
     "@types/node": "^26.6.2",
     "concurrently": "^10.0.5",
+    "esbuild": "^0.28.2",
     "typescript": "^7.0.2"
   }
 }

@@ -20,5 +20,13 @@ pnpm-debug.log*
 # macOS-specific files
 .DS_Store
 
+# generated service worker
+public/sw.js
+public/sw.js.map
+
 # jetbrains setting folder
 .idea/
+
+# VS Code
+.vscode/
+*.code-workspace
