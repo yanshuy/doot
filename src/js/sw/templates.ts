@@ -1,7 +1,7 @@
 // HTML templates for Service Worker error & status pages
 // Sharp, concise developer layout matching the original 502 template
 
-export function getConnectingPromptHtml(roomId: string, proxyUrl: string): string {
+export function getProxyHubRequiredHtml(roomId: string, proxyUrl: string): string {
   return `<!DOCTYPE html>
 <html>
 <head>

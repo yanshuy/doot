@@ -1,3 +1,4 @@
+import { openDB, type IDBPDatabase } from "idb";
 import {
   REQUEST_BODY_CHUNK,
   REQUEST_END,
@@ -11,7 +12,7 @@ import {
   parseResponseHead,
   serializeRequestHeader,
 } from "../proxy/http";
-import { getConnectingPromptHtml, getBadGatewayHtml } from "./templates";
+import { getProxyHubRequiredHtml, getBadGatewayHtml } from "./templates";
 
 //control message
 export const PROXY_RESPONSE_PLACEHOLDER = "PROXY_RESPONSE_PLACEHOLDER";
@@ -19,6 +20,36 @@ export const PROXY_REQUEST_START = "PROXY_REQUEST_START";
 export const REQUEST_BODY_START = "REQUEST_BODY_START";
 
 const sw = self as unknown as ServiceWorkerGlobalScope & typeof globalThis;
+
+const DB_NAME = "doot_sw_db";
+const DB_VERSION = 1;
+const STORE_NAME = "client_rooms";
+
+async function getDB(): Promise<IDBPDatabase> {
+  return openDB(DB_NAME, DB_VERSION, {
+    upgrade(db) {
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    },
+  });
+}
+
+async function saveClientRoom(clientId: string, roomId: string): Promise<void> {
+  try {
+    const db = await getDB();
+    await db.put(STORE_NAME, roomId, clientId);
+  } catch {}
+}
+
+async function getClientRoom(clientId: string): Promise<string | null> {
+  try {
+    const db = await getDB();
+    return (await db.get(STORE_NAME, clientId)) || null;
+  } catch {
+    return null;
+  }
+}
 
 async function getProxyClient(roomId: string): Promise<Client | null> {
   const clients = await sw.clients.matchAll({ type: "window", includeUncontrolled: true });
@@ -86,6 +117,14 @@ async function handleFetch(ev: FetchEvent, url: URL): Promise<Response> {
           targetPath = url.pathname + url.search;
         }
       }
+
+      if (!roomId) {
+        const storedRoom = await getClientRoom(ev.clientId);
+        if (storedRoom) {
+          roomId = storedRoom;
+          targetPath = url.pathname + url.search;
+        }
+      }
     }
 
     if (!roomId) {
@@ -107,6 +146,12 @@ async function handleFetch(ev: FetchEvent, url: URL): Promise<Response> {
     return fetch(ev.request);
   }
 
+  // Persist the association in IndexedDB across SW restarts
+  const targetClientId = ev.resultingClientId || ev.clientId;
+  if (targetClientId && roomId) {
+    saveClientRoom(targetClientId, roomId);
+  }
+
   if (ev.request.mode === "navigate" && !url.searchParams.has("doot_tunnel")) {
     const nextUrl = new URL(url.toString());
     nextUrl.searchParams.set("doot_tunnel", roomId);
@@ -117,7 +162,7 @@ async function handleFetch(ev: FetchEvent, url: URL): Promise<Response> {
 
   if (!proxyClient) {
     const proxyUrl = `${url.origin}/proxy?name=${encodeURIComponent(roomId)}&mode=client`;
-    return new Response(getConnectingPromptHtml(roomId, proxyUrl), {
+    return new Response(getProxyHubRequiredHtml(roomId, proxyUrl), {
       status: 503,
       headers: { "Content-Type": "text/html; charset=utf-8" },
     });
