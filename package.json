@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "astro": "^7.2.6",
+    "cookie-es": "^3.1.1",
     "idb": "^8.0.3"
   },
   "allowScripts": {
