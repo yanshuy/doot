@@ -164,10 +164,24 @@ async function executeHostFetch(
         });
       }
       if (dc.readyState === "open") {
-        const errorHtml = `<!DOCTYPE html><html><body style="font-family:system-ui,-apple-system,sans-serif;padding:36px;background:#181825;color:#cdd6f4;">` +
+        const isCorsOrNetwork = err?.name === "TypeError" && err?.message === "Failed to fetch";
+        const currentOrigin = window.location.origin;
+        const errorHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>502 Bad Gateway</title></head><body style="font-family:system-ui,-apple-system,sans-serif;padding:36px;background:#181825;color:#cdd6f4;line-height:1.5;max-width:720px;margin:0 auto;">` +
           `<h2 style="color:#f38ba8;margin-top:0;">502 Bad Gateway</h2>` +
-          `<p>The Host failed to connect to local target server at <code>${targetHost}</code>.</p>` +
-          `<p style="color:#a6adc8;font-size:13px;">Error: <code>${err?.message || "Connection refused"}</code></p>` +
+          `<p>The Host failed to connect to local target server at <code style="background:#313244;padding:2px 6px;border-radius:4px;">${targetHost}</code>.</p>` +
+          `<p style="color:#a6adc8;font-size:13px;">Error: <code style="color:#f38ba8;">${err?.message || "Connection refused"}</code></p>` +
+          (isCorsOrNetwork ?
+            `<div style="background:#313244;border-left:4px solid #f9e2af;padding:12px 16px;margin:20px 0;border-radius:4px;font-size:13px;">` +
+            `<strong style="color:#f9e2af;">⚠️ Why "Failed to fetch"? (CORS / Private Network Access):</strong>` +
+            `<ul style="margin:8px 0 0;padding-left:20px;color:#cdd6f4;">` +
+            `<li><strong>Local Server Not Running:</strong> Ensure your local dev server is running on <code style="color:#89b4fa;">${targetHost}</code>.</li>` +
+            `<li><strong>CORS / PNA Headers Missing:</strong> Because the host tab is on <code style="color:#89b4fa;">${currentOrigin}</code>, requests to <code style="color:#89b4fa;">localhost</code> require CORS and Private Network Access headers on your local server.</li>` +
+            `</ul>` +
+            `<div style="margin-top:12px;color:#a6adc8;"><strong>Required Headers on your local server:</strong><pre style="background:#1e1e2e;padding:10px;border-radius:6px;overflow-x:auto;color:#a6e3a1;margin:6px 0 0;">Access-Control-Allow-Origin: ${currentOrigin}
+Access-Control-Allow-Private-Network: true
+Access-Control-Allow-Methods: *
+Access-Control-Allow-Headers: *</pre></div>` +
+            `</div>` : "") +
           `<p style="margin-top:24px;"><button style="padding:8px 16px;background:#89b4fa;color:#11111b;border:none;border-radius:6px;cursor:pointer;font-weight:600;" onclick="window.location.reload()">Retry</button></p>` +
           `</body></html>`;
         const bodyBuf = encoder.encode(errorHtml);
