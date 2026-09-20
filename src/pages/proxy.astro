@@ -162,11 +162,7 @@ import DootLogo from "../components/DootLogo.astro";
     import { setTargetHost, RequestLogs } from "../js/proxy/host";
 
     const params = new URLSearchParams(window.location.search);
-    const roomName =
-        params.get("name") ||
-        params.get("room") ||
-        decodeURIComponent(window.location.search.slice(1)) ||
-        "proxy-room";
+    const roomName = params.get("name") || "proxy-room";
 
     const roomIdEl = document.getElementById("room-id");
     if (roomIdEl) roomIdEl.textContent = roomName;

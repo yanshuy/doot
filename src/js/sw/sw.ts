@@ -26,10 +26,8 @@ async function getProxyClient(roomId: string): Promise<Client | null> {
     clients.find((c) => {
       try {
         const u = new URL(c.url);
-        return (
-          u.pathname === "/proxy" &&
-          (u.searchParams.get("name") === roomId || u.searchParams.get("room") === roomId)
-        );
+        const path = u.pathname.replace(/\/+$/, "");
+        return path === "/proxy" && u.searchParams.get("name") === roomId;
       } catch {
         return false;
       }
