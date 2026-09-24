@@ -602,6 +602,12 @@ import DootLogo from "../components/DootLogo.astro";
         }
     });
 
+    window.addEventListener("beforeunload", () => {
+        if (tunnelChannel) {
+            tunnelChannel.postMessage({ type: "HUB_CLOSED", roomId: roomName });
+        }
+    });
+
     // Helper: wait for a connected peer if ICE negotiation is currently finishing
     async function waitForConnectedPeer(
         targetPeerId: string | null,
