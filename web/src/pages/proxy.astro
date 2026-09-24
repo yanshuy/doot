@@ -197,6 +197,7 @@ import DootLogo from "../components/DootLogo.astro";
     import { handleClientProxyRequest } from "../js/proxy/client";
     import { setTargetHost, RequestLogs } from "../js/proxy/host";
     import { getStoredUsername } from "../js/username";
+    import { undefined } from "astro:schema";
 
     const search = window.location.search;
     const params = new URLSearchParams(search);
@@ -580,7 +581,7 @@ import DootLogo from "../components/DootLogo.astro";
 
     // Helper: wait for a connected peer if ICE negotiation is currently finishing
     async function waitForConnectedPeer(
-        targetPeerId?: string,
+        targetPeerId: string | null,
         timeoutMs = 2500,
     ): Promise<boolean> {
         const check = () => {
