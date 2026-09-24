@@ -13,9 +13,11 @@ import DebugChat from "../components/DebugChat.astro";
                 <DootLogo />
                 <span class="brand-name">doot</span>
             </a>
-            <span class="room-badge mono-font"
-                >room: <strong id="room-name">—</strong></span
-            >
+            <div class="header-right">
+                <span class="room-badge mono-font"
+                    >room: <strong id="room-name">—</strong></span
+                >
+            </div>
         </header>
 
         <div class="mobile-peer">
@@ -64,8 +66,13 @@ import DebugChat from "../components/DebugChat.astro";
     } from "../transfer";
 
     // Room info
-    const params = new URLSearchParams(window.location.search);
-    const roomName = params.get("room") || decodeURIComponent(window.location.search.slice(1)) || "unknown-room";
+    const search = window.location.search;
+    const params = new URLSearchParams(search);
+    const roomParam = params.get("name") || params.get("room");
+    // Fallback: if user navigated with ?roomName (no key) or anything raw
+    const rawParam = search.startsWith("?") ? search.slice(1).trim() : "";
+    const fallbackParam = rawParam && !rawParam.includes("=") ? decodeURIComponent(rawParam) : "";
+    const roomName = roomParam || fallbackParam || "unknown-room";
     const roomNameEl = document.getElementById("room-name");
     if (roomNameEl) roomNameEl.textContent = roomName;
 
@@ -168,6 +175,12 @@ import DebugChat from "../components/DebugChat.astro";
             padding: 16px;
             overflow-y: auto;
         }
+    }
+
+    .header-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
     }
 
     .room-badge {

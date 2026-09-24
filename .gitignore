@@ -1,21 +1,32 @@
 # build output
 dist/
+web/dist/
 
-# generated types
+# generated types & cache
 .astro/
+web/.astro/
 
 # dependencies
 node_modules/
+web/node_modules/
+signaling-server/node_modules/
 
 # logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+*.log
 
 # environment variables
 .env
 .env.production
+.env*.local
+
+# test & coverage
+coverage/
+*.lcov
+*.tsbuildinfo
 
 # macOS-specific files
 .DS_Store
@@ -23,10 +34,10 @@ pnpm-debug.log*
 # generated service worker
 public/sw.js
 public/sw.js.map
+web/public/sw.js
+web/public/sw.js.map
 
-# jetbrains setting folder
+# IDEs
 .idea/
-
-# VS Code
 .vscode/
 *.code-workspace

@@ -1,7 +1,7 @@
 import { BUFFER_LOW_THRESHOLD, CRLF, createDataChannelSink, parseRequestHead } from "./utils";
 const encoder = new TextEncoder();
 
-let targetHost = "http://localhost:4322";
+let targetHost = "http://localhost:4321";
 let hostReqCounter = 0;
 
 
@@ -164,27 +164,17 @@ async function executeHostFetch(
       }
       if (dc.readyState === "open") {
         const currentOrigin = window.location.origin;
-        const isCorsOrNetwork = err?.name === "TypeError" && err?.message === "Failed to fetch";
         const errorHtml = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <title>502 Bad Gateway</title>
 </head>
-<body style="font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;padding:36px;background:#292d3e;color:#eef0f7;margin:0;line-height:1.5;">
+<body style="font-family:system-ui,-apple-system,sans-serif;padding:36px;background:#292d3e;color:#eef0f7;margin:0;line-height:1.4;">
   <h2 style="color:#f38ba8;margin:0 0 12px;font-size:20px;font-weight:600;">502 Bad Gateway</h2>
-  <p style="margin:0 0 4px;font-size:14px;color:#eef0f7;">The Host failed to connect to local target server at <code style="font-family:ui-monospace,Menlo,monospace;background:#222436;padding:2px 6px;border-radius:4px;color:#89b4fa;">${targetHost}</code>.</p>
-  <p style="color:#a3a8c2;font-size:13px;margin:0 0 16px;">Error: <code style="font-family:ui-monospace,Menlo,monospace;color:#f38ba8;">${err?.message || "Connection refused"}</code></p>
-  ${isCorsOrNetwork ? `
-  <div style="background:#323752;border:1px solid #40456866;border-radius:8px;padding:16px;margin:16px 0;max-width:640px;">
-    <div style="color:#eef0f7;font-size:13px;font-weight:600;margin-bottom:8px;">CORS / Private Network Access Required</div>
-    <p style="color:#a3a8c2;font-size:13px;margin:0 0 8px;">Because the host tab is on <code style="font-family:ui-monospace,Menlo,monospace;color:#89b4fa;">${currentOrigin}</code>, requests to localhost require CORS and Private Network Access headers on your local server:</p>
-    <pre style="font-family:ui-monospace,Menlo,monospace;font-size:12px;background:#222436;border:1px solid #40456866;border-radius:6px;padding:10px 12px;color:#89b4fa;margin:0;overflow-x:auto;">Access-Control-Allow-Origin: ${currentOrigin}
-Access-Control-Allow-Private-Network: true
-Access-Control-Allow-Methods: *
-Access-Control-Allow-Headers: *</pre>
-  </div>` : ""}
-  <p style="margin:20px 0 0;">
+  <p style="margin:0 0 4px;font-size:14px;color:#eef0f7;">The host server is currently unreachable or refused the connection.</p>
+  <p style="color:#a3a8c2;font-size:13px;margin:0 0 20px;">Please check with the host or retry in a moment.</p>
+  <p style="margin:0;">
     <button style="padding:8px 16px;background:#89b4fa;color:#11111b;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;" onclick="window.location.reload()">Retry</button>
   </p>
   <script>

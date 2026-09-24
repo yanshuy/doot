@@ -1,3 +1,6 @@
+---
+import SignalingToast from "../components/SignalingToast.astro";
+---
 <!doctype html>
 <html lang="en">
 	<head>
@@ -22,6 +25,7 @@
 	</head>
 	<body>
 		<slot />
+		<SignalingToast />
 	</body>
 </html>
 <style is:global>

@@ -12,9 +12,11 @@ import DootLogo from "../components/DootLogo.astro";
                 <span class="brand-name">doot</span>
             </a>
 
-            <div class="room-indicator mono-font">
-                <span id="room-label">room:</span>
-                <strong id="room-id">—</strong>
+            <div class="header-right">
+                <div class="room-indicator mono-font">
+                    <span id="room-label">room:</span>
+                    <strong id="room-id">—</strong>
+                </div>
             </div>
         </header>
 
@@ -38,6 +40,24 @@ import DootLogo from "../components/DootLogo.astro";
                     </p>
                 </div>
 
+                <!-- Dedicated Share Client Link Card (Single-line) -->
+                <div class="card host-share-card host-share-card-single">
+                    <span class="card-tag mono-font">CLIENT LINK</span>
+                    <input
+                        id="host-client-url-input"
+                        type="text"
+                        readonly
+                        class="input mono-font host-share-input"
+                    />
+                    <button
+                        id="host-copy-client-url-btn"
+                        type="button"
+                        class="btn btn-secondary host-share-btn"
+                    >
+                        Copy
+                    </button>
+                </div>
+
                 <div class="proxy-layout">
                     <div class="proxy-main-col">
                         <div class="card">
@@ -46,6 +66,10 @@ import DootLogo from "../components/DootLogo.astro";
                                     <label for="host-target-input" class="label"
                                         >LOCAL SERVER ADDRESS</label
                                     >
+                                    <span
+                                        id="target-health-badge"
+                                        class="target-health-badge mono-font"
+                                        style="display: none;"></span>
                                 </div>
                                 <input
                                     id="host-target-input"
@@ -54,6 +78,12 @@ import DootLogo from "../components/DootLogo.astro";
                                     class="input mono-font"
                                     placeholder="http://localhost:4322"
                                 />
+                                <div
+                                    id="target-health-alert"
+                                    class="target-health-alert"
+                                    style="display: none;"
+                                >
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -97,64 +127,58 @@ import DootLogo from "../components/DootLogo.astro";
                             </div>
                             <div id="log-rows" class="log-rows"></div>
                         </div>
+
+                        <!-- Template for log row -->
+                        <template id="log-row-template">
+                            <div class="log-grid-row">
+                                <div class="col-id"></div>
+                                <div class="col-status"></div>
+                                <div class="col-method"></div>
+                                <div class="col-path"></div>
+                                <div class="col-time"></div>
+                            </div>
+                        </template>
                     </div>
                 </div>
             </div>
 
             <!-- Client Panel -->
             <div id="tab-pane-client" class="tab-pane" hidden>
-                <div class="mobile-peer">
-                    <p id="client-mobile-peer-label" class="mobile-peer-label">
-                        Waiting for a host...
-                    </p>
-                </div>
+                <div class="client-layout-full">
+                    <!-- Available Hosts List -->
+                    <div class="card hosts-section-card">
+                        <div class="card-title-row">
+                            <span
+                                id="hosts-header-title"
+                                class="card-tag mono-font"
+                                >0 AVAILABLE HOSTS</span
+                            >
+                        </div>
+                        <p class="hosts-section-desc">
+                            Click on any host to connect and open the tunneled
+                            application in a new tab.
+                        </p>
 
-                <div class="client-layout">
-                    <div class="client-main-col">
-                        <div class="card">
-                            <div class="field-group">
-                                <div class="field-header">
-                                    <label class="label">TUNNEL ADDRESS</label>
-                                </div>
-                                <div class="input-with-action">
-                                    <input
-                                        id="tunnel-url-input"
-                                        type="text"
-                                        readonly
-                                        class="input mono-font"
-                                    />
-                                    <button
-                                        id="copy-url-btn"
-                                        type="button"
-                                        class="btn btn-secondary"
-                                    >
-                                        Copy
-                                    </button>
-                                </div>
+                        <!-- Host Selection List -->
+                        <div id="hosts-list" class="hosts-list">
+                            <div id="hosts-empty" class="hosts-empty">
+                                <iconify-icon
+                                    icon="mdi:server-network-off"
+                                    class="empty-icon"></iconify-icon>
+                                <p>No hosts online in this room yet.</p>
+                                <span class="empty-sub"
+                                    >When someone opens the Host tab, they will
+                                    appear here.</span
+                                >
+                            </div>
+                            <div
+                                id="hosts-container"
+                                class="hosts-container"
+                                style="display: none;"
+                            >
                             </div>
                         </div>
-
-                        <div class="actions-row">
-                            <a
-                                id="launch-btn"
-                                href="#"
-                                target="_blank"
-                                rel="opener"
-                                class="btn btn-primary btn-client-theme"
-                            >
-                                <span>Open Tunneled App</span>
-                                <iconify-icon icon="mdi:open-in-new"
-                                ></iconify-icon>
-                            </a>
-                        </div>
                     </div>
-
-                    <aside class="peer-panel">
-                        <h2 class="panel-title">Host</h2>
-                        <p id="client-peer-name" class="peer-name">
-                            Waiting for a host...
-                        </p>
-                    </aside>
                 </div>
             </div>
         </main>
@@ -162,16 +186,30 @@ import DootLogo from "../components/DootLogo.astro";
 </Layout>
 
 <script>
+    import {
+        Peers,
+        setRole,
+        PEER_ID,
+        selectedHostPeerId,
+        selectHost,
+    } from "../js/peers";
     import { SS } from "../js/signaling";
-    import { Peers, setRole, knownRoomPeers, PEER_ID } from "../js/peers";
     import { handleClientProxyRequest } from "../js/proxy/client";
     import { setTargetHost, RequestLogs } from "../js/proxy/host";
+    import { getStoredUsername } from "../js/username";
 
-    const params = new URLSearchParams(window.location.search);
-    const roomName = params.get("name") || "proxy-room";
+    const search = window.location.search;
+    const params = new URLSearchParams(search);
+    const roomParam = params.get("name") || params.get("room");
+    const rawParam = search.startsWith("?") ? search.slice(1).trim() : "";
+    const fallbackParam =
+        rawParam && !rawParam.includes("=") ? decodeURIComponent(rawParam) : "";
+    const roomName = roomParam || fallbackParam || "proxy-room";
 
     const roomIdEl = document.getElementById("room-id");
     if (roomIdEl) roomIdEl.textContent = roomName;
+
+    let currentUsername = getStoredUsername();
 
     // Mode: Default is always 'client'. A client chooses to become a 'proxy' (host).
     let mode: "proxy" | "client" =
@@ -179,9 +217,18 @@ import DootLogo from "../components/DootLogo.astro";
             ? "proxy"
             : "client";
 
-    // Join room with initial role metadata
+    // Join room with initial role and username metadata
     setRole(mode);
-    SS.joinRoom(roomName, { role: mode });
+    SS.joinRoom(roomName, { role: mode, username: currentUsername });
+
+    window.addEventListener("doot:username-changed", (e: any) => {
+        currentUsername = e.detail;
+        SS.sendSignal({
+            type: "update_metadata",
+            room_id: roomName,
+            metadata: { role: mode, username: currentUsername },
+        });
+    });
 
     // Elements
     const tabBtnHost = document.getElementById("tab-btn-host");
@@ -191,33 +238,32 @@ import DootLogo from "../components/DootLogo.astro";
     const hostTargetInput = document.getElementById(
         "host-target-input",
     ) as HTMLInputElement | null;
-    const tunnelUrlInput = document.getElementById(
-        "tunnel-url-input",
+    const hostClientUrlInput = document.getElementById(
+        "host-client-url-input",
     ) as HTMLInputElement | null;
-    const copyUrlBtn = document.getElementById("copy-url-btn");
-    const launchBtn = document.getElementById(
-        "launch-btn",
-    ) as HTMLAnchorElement | null;
+    const hostCopyClientUrlBtn = document.getElementById(
+        "host-copy-client-url-btn",
+    );
     const hostPeerName = document.getElementById("host-peer-name");
     const hostMobilePeerLabel = document.getElementById(
         "host-mobile-peer-label",
     );
-    const clientPeerName = document.getElementById("client-peer-name");
-    const clientMobilePeerLabel = document.getElementById(
-        "client-mobile-peer-label",
-    );
 
-    // Tunnel param: ?doot_tunnel=<roomId>
-    const tunnelUrl = `${window.location.origin}?doot_tunnel=${encodeURIComponent(roomName)}`;
+    // Host-side client share link: direct link for clients to join this exact room in client mode
+    const clientJoinUrl = `${window.location.origin}/proxy?name=${encodeURIComponent(roomName)}&mode=client`;
+    if (hostClientUrlInput) hostClientUrlInput.value = clientJoinUrl;
+    hostCopyClientUrlBtn?.addEventListener("click", () => {
+        if (hostClientUrlInput) {
+            navigator.clipboard.writeText(hostClientUrlInput.value);
+            hostCopyClientUrlBtn.textContent = "Copied";
+            setTimeout(() => {
+                hostCopyClientUrlBtn.textContent = "Copy Link";
+            }, 1500);
+        }
+    });
 
-    if (tunnelUrlInput) tunnelUrlInput.value = tunnelUrl;
-    if (launchBtn) {
-        launchBtn.href = tunnelUrl;
-        launchBtn.addEventListener("click", (e) => {
-            e.preventDefault();
-            window.open(tunnelUrl, "_blank");
-        });
-    }
+    // Tunnel param: ?__tunnel=<roomId>
+    const tunnelUrl = `${window.location.origin}?__tunnel=${encodeURIComponent(roomName)}`;
 
     function updateMode(newMode: "proxy" | "client") {
         mode = newMode;
@@ -225,7 +271,7 @@ import DootLogo from "../components/DootLogo.astro";
         SS.sendSignal({
             type: "update_metadata",
             room_id: roomName,
-            metadata: { role: mode },
+            metadata: { role: mode, username: currentUsername },
         });
 
         // Store tab state in URL so reloading opens the correct tab!
@@ -252,6 +298,10 @@ import DootLogo from "../components/DootLogo.astro";
     const logEmpty = document.getElementById("log-empty");
     const clearLogsBtn = document.getElementById("clear-logs-btn");
 
+    const logRowTemplate = document.getElementById(
+        "log-row-template",
+    ) as HTMLTemplateElement | null;
+
     clearLogsBtn?.addEventListener("click", () => {
         RequestLogs.clear();
     });
@@ -267,51 +317,137 @@ import DootLogo from "../components/DootLogo.astro";
         if (logEmpty) logEmpty.style.display = "none";
         if (logGrid) logGrid.style.display = "flex";
 
-        if (logRows) {
-            logRows.innerHTML = entries
-                .map((entry) => {
-                    const is2xx = entry.status >= 200 && entry.status < 300;
-                    const is3xx = entry.status >= 300 && entry.status < 400;
-                    const is4xx = entry.status >= 400 && entry.status < 500;
-                    const statusColorClass = is2xx
-                        ? "status-2xx"
-                        : is3xx
-                          ? "status-3xx"
-                          : is4xx
-                            ? "status-4xx"
-                            : "status-5xx";
+        if (logRows && logRowTemplate) {
+            logRows.innerHTML = "";
+            const fragment = document.createDocumentFragment();
 
-                    return `
-                        <div class="log-grid-row">
-                            <div class="col-id">${entry.id}</div>
-                            <div class="col-status ${statusColorClass}">${entry.status}</div>
-                            <div class="col-method">${entry.method}</div>
-                            <div class="col-path" title="${entry.path}">${entry.path}</div>
-                            <div class="col-time">${entry.durationMs}ms</div>
-                        </div>
-                    `;
-                })
-                .join("");
+            for (const entry of entries) {
+                const clone = logRowTemplate.content.cloneNode(
+                    true,
+                ) as DocumentFragment;
+                const row = clone.querySelector(".log-grid-row");
+                const colId = clone.querySelector(".col-id");
+                const colStatus = clone.querySelector(".col-status");
+                const colMethod = clone.querySelector(".col-method");
+                const colPath = clone.querySelector(
+                    ".col-path",
+                ) as HTMLElement | null;
+                const colTime = clone.querySelector(".col-time");
+
+                const is2xx = entry.status >= 200 && entry.status < 300;
+                const is3xx = entry.status >= 300 && entry.status < 400;
+                const is4xx = entry.status >= 400 && entry.status < 500;
+                const statusColorClass = is2xx
+                    ? "status-2xx"
+                    : is3xx
+                      ? "status-3xx"
+                      : is4xx
+                        ? "status-4xx"
+                        : "status-5xx";
+
+                if (colId) colId.textContent = String(entry.id);
+                if (colStatus) {
+                    colStatus.textContent = String(entry.status);
+                    colStatus.classList.add(statusColorClass);
+                }
+                if (colMethod) colMethod.textContent = entry.method;
+                if (colPath) {
+                    colPath.textContent = entry.path;
+                    colPath.title = entry.path;
+                }
+                if (colTime) colTime.textContent = `${entry.durationMs}ms`;
+
+                fragment.appendChild(clone);
+            }
+
+            logRows.appendChild(fragment);
         }
     });
 
-    // Host target input change
-    hostTargetInput?.addEventListener("change", () => {
-        if (hostTargetInput.value) {
-            setTargetHost(hostTargetInput.value.trim());
-        }
-    });
+    // Host target input setup, sync & proactive health probe
+    const targetHealthBadge = document.getElementById("target-health-badge");
+    const targetHealthAlert = document.getElementById("target-health-alert");
+    let healthCheckTimer: number | undefined;
 
-    // Copy URL
-    copyUrlBtn?.addEventListener("click", () => {
-        if (tunnelUrlInput) {
-            navigator.clipboard.writeText(tunnelUrlInput.value);
-            copyUrlBtn.textContent = "Copied";
-            setTimeout(() => {
-                copyUrlBtn.textContent = "Copy";
-            }, 1500);
+    async function checkTargetHealth(rawHost: string) {
+        if (!targetHealthBadge || !targetHealthAlert) return;
+        const host = rawHost.trim().replace(/\/+$/, "");
+        if (!host) {
+            targetHealthBadge.style.display = "none";
+            targetHealthAlert.style.display = "none";
+            return;
         }
-    });
+
+        targetHealthBadge.style.display = "inline-flex";
+        targetHealthBadge.className = "target-health-badge checking mono-font";
+        targetHealthBadge.textContent = "Checking...";
+        targetHealthAlert.style.display = "none";
+
+        try {
+            // Probe with CORS request from the browser
+            const res = await fetch(`${host}/`, {
+                method: "GET",
+                signal: AbortSignal.timeout(3500),
+            });
+
+            targetHealthBadge.className =
+                "target-health-badge healthy mono-font";
+            targetHealthBadge.textContent = `Online`;
+            targetHealthAlert.style.display = "none";
+        } catch (err: any) {
+            // In browser fetch, TypeError: Failed to fetch occurs for either:
+            // 1. Connection refused / service not running
+            // 2. CORS / Private Network Access headers blocked
+            // Probe via no-cors to differentiate:
+            try {
+                await fetch(`${host}/`, {
+                    mode: "no-cors",
+                    signal: AbortSignal.timeout(2000),
+                });
+
+                // Server responded (opaque), meaning server IS running but CORS blocked the host browser tab!
+                targetHealthBadge.className =
+                    "target-health-badge warning mono-font";
+                targetHealthBadge.textContent = "CORS Missing";
+                targetHealthAlert.className = "target-health-alert warning";
+                targetHealthAlert.style.display = "block";
+                targetHealthAlert.innerHTML = `
+                    <strong>Server running, but CORS headers are missing:</strong><br />
+                    Add <code>Access-Control-Allow-Origin: *</code> (or <code>${window.location.origin}</code>) and <code>Access-Control-Allow-Private-Network: true</code> to your local server so this browser tab can forward requests.
+                `;
+            } catch {
+                // Completely unreachable / port closed / connection refused
+                targetHealthBadge.className =
+                    "target-health-badge unreachable mono-font";
+                targetHealthBadge.textContent = "Unreachable";
+                targetHealthAlert.className = "target-health-alert unreachable";
+                targetHealthAlert.style.display = "block";
+                targetHealthAlert.innerHTML = `
+                    <strong>Service not running or refused connection on <code>${host}</code>:</strong><br />
+                    Ensure your local dev server is started and listening on this port.
+                `;
+            }
+        }
+    }
+
+    const syncHostTarget = () => {
+        if (hostTargetInput?.value) {
+            const host = hostTargetInput.value.trim();
+            setTargetHost(host);
+            window.clearTimeout(healthCheckTimer);
+            healthCheckTimer = window.setTimeout(() => {
+                checkTargetHealth(host);
+            }, 350);
+        }
+    };
+
+    if (hostTargetInput?.value) {
+        setTargetHost(hostTargetInput.value.trim());
+        checkTargetHealth(hostTargetInput.value.trim());
+    }
+
+    hostTargetInput?.addEventListener("input", syncHostTarget);
+    hostTargetInput?.addEventListener("change", syncHostTarget);
 
     // Broadcast channel to notify waiting tunnel tabs reactively
     const tunnelChannel =
@@ -319,20 +455,91 @@ import DootLogo from "../components/DootLogo.astro";
             ? new BroadcastChannel("doot_tunnel")
             : null;
 
-    // Helper to update client peer UI
-    function updateClientPeerUI(peerId: string | null) {
-        if (!peerId) {
-            if (clientPeerName)
-                clientPeerName.textContent = "Waiting for a host...";
-            if (clientMobilePeerLabel)
-                clientMobilePeerLabel.innerHTML = `Waiting for a host...`;
+    // Client Host Selection Elements
+    const hostsEmpty = document.getElementById("hosts-empty");
+    const hostsContainer = document.getElementById("hosts-container");
+    const hostsHeaderTitle = document.getElementById("hosts-header-title");
+
+    function renderHostsList() {
+        const availableHosts = Array.from(Peers.map.values()).filter(
+            (peer) => peer.id !== PEER_ID && peer.role === "proxy",
+        );
+
+        if (hostsHeaderTitle) {
+            const count = availableHosts.length;
+            hostsHeaderTitle.textContent = `${count} AVAILABLE ${count === 1 ? "HOST" : "HOSTS"}`;
+        }
+
+        if (availableHosts.length === 0) {
+            if (hostsEmpty) hostsEmpty.style.display = "flex";
+            if (hostsContainer) hostsContainer.style.display = "none";
             return;
         }
 
-        const formatted = `${peerId.slice(0, 8)}`;
-        if (clientPeerName) clientPeerName.textContent = formatted;
-        if (clientMobilePeerLabel) {
-            clientMobilePeerLabel.innerHTML = `<span style="color: var(--text-primary); margin-right: 5px;">Host</span> <span class="peer-id-val">${formatted}</span>`;
+        if (hostsEmpty) hostsEmpty.style.display = "none";
+        if (hostsContainer) {
+            hostsContainer.style.display = "flex";
+            hostsContainer.innerHTML = availableHosts
+                .map((peer) => {
+                    const peerId = peer.id;
+                    const isSelected = selectedHostPeerId === peerId;
+                    const isConnected =
+                        peer.conn?.connectionState === "connected";
+                    const isConnecting =
+                        isSelected &&
+                        peer.conn?.connectionState === "connecting";
+                    const displayName =
+                        peer.username || `Host-${peerId.slice(0, 6)}`;
+                    const shortId = peerId.slice(0, 8);
+
+                    let statusBadgeHtml = "";
+                    if (isConnected) {
+                        statusBadgeHtml = `<span class="badge-connect connected mono-font">Connected</span>`;
+                    } else if (isConnecting) {
+                        statusBadgeHtml = `<span class="badge-connect connecting mono-font">Connecting...</span>`;
+                    }
+
+                    return `
+                        <div class="host-card ${isSelected ? "selected" : ""}" data-peer-id="${peerId}" role="button" tabindex="0" title="Click to connect with ${displayName} and open tunneled app">
+                            <div class="host-card-info">
+                                <span class="host-card-icon">
+                                    <iconify-icon icon="mdi:server-network"></iconify-icon>
+                                </span>
+                                <div class="host-card-details">
+                                    <span class="host-card-name">${displayName}</span>
+                                    <div class="host-card-meta-row">
+                                        <span class="host-card-meta mono-font">${shortId}</span>
+                                        ${statusBadgeHtml}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="host-card-action">
+                                <iconify-icon icon="mdi:open-in-new" class="host-open-icon"></iconify-icon>
+                            </div>
+                        </div>
+                    `;
+                })
+                .join("");
+
+            // When user clicks the host card, select the host and open the tunnel tab
+            hostsContainer.querySelectorAll(".host-card").forEach((card) => {
+                const clickHandler = () => {
+                    const targetId = (card as HTMLElement).dataset.peerId;
+                    if (targetId) {
+                        selectHost(targetId);
+                        window.open(tunnelUrl, "_blank");
+                        renderHostsList();
+                    }
+                };
+
+                card.addEventListener("click", clickHandler);
+                card.addEventListener("keydown", (e: any) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        clickHandler();
+                    }
+                });
+            });
         }
     }
 
@@ -348,34 +555,23 @@ import DootLogo from "../components/DootLogo.astro";
         }
     }
 
-    // Subscribe to Peers changes
+    // Subscribe to unified Peers changes (one single listener handles everything!)
     Peers.onchange((map) => {
-        // 1. Host side: show number of clients connected (not client ID)
-        const connectedClients = Array.from(map.entries()).filter(
-            ([id, peer]) =>
-                id !== PEER_ID &&
-                peer.conn.connectionState === "connected" &&
-                knownRoomPeers.get(id)?.role !== "proxy",
+        // 1. Host side: show number of clients connected
+        const connectedClients = Array.from(map.values()).filter(
+            (peer) =>
+                peer.id !== PEER_ID &&
+                peer.conn?.connectionState === "connected" &&
+                peer.role !== "proxy",
         );
         updateHostPeerUI(connectedClients.length);
 
-        // 2. Client side: show the host peer ID (or waiting)
-        const hostEntry = Array.from(map.entries()).find(
-            ([id, peer]) =>
-                id !== PEER_ID &&
-                peer.conn.connectionState === "connected" &&
-                knownRoomPeers.get(id)?.role === "proxy",
-        );
-
-        if (hostEntry) {
-            updateClientPeerUI(hostEntry[0]);
-        } else {
-            updateClientPeerUI(null);
-        }
+        // 2. Client side: re-render host cards with updated connection states & usernames
+        renderHostsList();
 
         // ONLY broadcast ready when there is an active CONNECTED WebRTC connection!
         const hasConnectedPeer = Array.from(map.values()).some(
-            (p) => p.conn.connectionState === "connected",
+            (p) => p.conn?.connectionState === "connected",
         );
         if (hasConnectedPeer && tunnelChannel) {
             tunnelChannel.postMessage({ type: "ready", roomId: roomName });
@@ -383,11 +579,19 @@ import DootLogo from "../components/DootLogo.astro";
     });
 
     // Helper: wait for a connected peer if ICE negotiation is currently finishing
-    async function waitForConnectedPeer(timeoutMs = 2500): Promise<boolean> {
-        const check = () =>
-            Array.from(Peers.map.values()).some(
-                (p) => p.conn.connectionState === "connected",
+    async function waitForConnectedPeer(
+        targetPeerId?: string,
+        timeoutMs = 2500,
+    ): Promise<boolean> {
+        const check = () => {
+            if (targetPeerId) {
+                const p = Peers.map.get(targetPeerId);
+                return p?.conn?.connectionState === "connected";
+            }
+            return Array.from(Peers.map.values()).some(
+                (p) => p.conn?.connectionState === "connected",
             );
+        };
         if (check()) return true;
 
         return new Promise((resolve) => {
@@ -406,14 +610,21 @@ import DootLogo from "../components/DootLogo.astro";
         });
     }
 
-    // Dispatch request to connected peer
+    // Dispatch request to connected peer (prioritize selected host)
     function dispatchProxyRequest(
         head: ArrayBuffer,
         port: MessagePort,
         hasBody: boolean,
     ): boolean {
+        if (selectedHostPeerId) {
+            const peer = Peers.map.get(selectedHostPeerId);
+            if (peer?.conn?.connectionState === "connected") {
+                handleClientProxyRequest(peer.conn, head, port, hasBody);
+                return true;
+            }
+        }
         for (const [id, peer] of Peers.map) {
-            if (peer.conn.connectionState === "connected") {
+            if (peer.conn?.connectionState === "connected") {
                 handleClientProxyRequest(peer.conn, head, port, hasBody);
                 return true;
             }
@@ -432,7 +643,10 @@ import DootLogo from "../components/DootLogo.astro";
                 // If peer is still negotiating (ICE handshake), give it up to 2.5s to finish
                 let sent = dispatchProxyRequest(head, reqPort, hasBody);
                 if (!sent) {
-                    const isReady = await waitForConnectedPeer(2500);
+                    const isReady = await waitForConnectedPeer(
+                        selectedHostPeerId,
+                        2500,
+                    );
                     if (isReady) {
                         sent = dispatchProxyRequest(head, reqPort, hasBody);
                     }
@@ -536,10 +750,17 @@ import DootLogo from "../components/DootLogo.astro";
     .tab-pane {
         display: flex;
         flex-direction: column;
+        gap: 16px;
     }
 
     .tab-pane[hidden] {
         display: none;
+    }
+
+    .header-right {
+        display: flex;
+        align-items: center;
+        gap: 14px;
     }
 
     .room-indicator {
@@ -594,6 +815,42 @@ import DootLogo from "../components/DootLogo.astro";
         font-weight: 600;
         letter-spacing: 0.05em;
         color: var(--text-muted);
+        white-space: nowrap;
+    }
+
+    /* Single-line Host Share Client Link bar */
+    .host-share-card-single {
+        flex-direction: row;
+        align-items: center;
+        gap: 14px;
+        padding: 12px 18px;
+    }
+
+    .host-share-card-single .card-tag {
+        flex-shrink: 0;
+    }
+
+    .host-share-input {
+        flex: 1;
+        min-width: 0;
+        height: 38px;
+        box-sizing: border-box;
+    }
+
+    .host-share-btn {
+        flex-shrink: 0;
+        white-space: nowrap;
+        height: 38px;
+        box-sizing: border-box;
+        padding: 0 16px;
+    }
+
+    @media (max-width: 640px) {
+        .host-share-card-single {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+        }
     }
 
     .badge {
@@ -623,6 +880,69 @@ import DootLogo from "../components/DootLogo.astro";
         font-weight: 700;
         letter-spacing: 0.06em;
         color: var(--text-muted);
+    }
+
+    .target-health-badge {
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 5px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.2s ease;
+    }
+
+    .target-health-badge.checking {
+        color: var(--text-muted);
+        background: var(--bg-input);
+        border: 1px solid var(--border-subtle);
+    }
+
+    .target-health-badge.healthy {
+        color: #a6e3a1;
+        background: rgba(166, 227, 161, 0.12);
+        border: 1px solid rgba(166, 227, 161, 0.3);
+    }
+
+    .target-health-badge.warning {
+        color: #f9e2af;
+        background: rgba(249, 226, 175, 0.12);
+        border: 1px solid rgba(249, 226, 175, 0.3);
+    }
+
+    .target-health-badge.unreachable {
+        color: #f38ba8;
+        background: rgba(243, 139, 168, 0.12);
+        border: 1px solid rgba(243, 139, 168, 0.3);
+    }
+
+    .target-health-alert {
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-size: 12px;
+        line-height: 1.45;
+        animation: fadeIn 0.15s ease-out;
+    }
+
+    .target-health-alert.warning {
+        background: rgba(249, 226, 175, 0.08);
+        border: 1px solid rgba(249, 226, 175, 0.3);
+        color: #f9e2af;
+    }
+
+    .target-health-alert.unreachable {
+        background: rgba(243, 139, 168, 0.08);
+        border: 1px solid rgba(243, 139, 168, 0.3);
+        color: #f38ba8;
+    }
+
+    .target-health-alert code {
+        font-family: var(--font-mono);
+        background: rgba(0, 0, 0, 0.25);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 11px;
     }
 
     .input {
@@ -657,7 +977,187 @@ import DootLogo from "../components/DootLogo.astro";
         width: 100%;
     }
 
-    /* Two-Column Layout & Peer Panel matching room.astro */
+    .client-layout-full {
+        width: 100%;
+    }
+
+    .hosts-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .hosts-container {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        width: 100%;
+    }
+
+    .hosts-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 36px 16px;
+        text-align: center;
+        color: var(--text-muted);
+        background: var(--bg-input);
+        border: 1px dashed var(--border-subtle);
+        border-radius: 10px;
+        gap: 8px;
+    }
+
+    .hosts-empty .empty-icon {
+        font-size: 32px;
+        color: var(--text-muted);
+    }
+
+    .hosts-empty p {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin: 0;
+    }
+
+    .hosts-empty .empty-sub {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .hosts-section-desc {
+        font-size: 13px;
+        color: var(--text-muted);
+        margin: -6px 0 6px 0;
+    }
+
+    :global(.host-card) {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        width: 100%;
+        padding: 14px 18px;
+        background: var(--bg-surface-elevated, #3b4162);
+        border: 1px solid var(--border-subtle);
+        border-radius: 9px;
+        text-decoration: none;
+        color: inherit;
+        cursor: pointer;
+        transition:
+            border-color 0.15s ease,
+            background-color 0.15s ease,
+            box-shadow 0.15s ease,
+            transform 0.1s ease;
+    }
+
+    :global(.host-card:hover) {
+        border-color: var(--border-focus);
+        background: #434a6f;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        transform: translateY(-1px);
+    }
+
+    :global(.host-card.selected) {
+        border-color: var(--accent-primary);
+        background: rgba(255, 158, 100, 0.12);
+        box-shadow: 0 0 0 1px var(--accent-primary);
+    }
+
+    :global(.host-card-info) {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex: 1;
+        min-width: 0;
+    }
+
+    :global(.host-card-icon) {
+        color: var(--accent-text);
+        font-size: 24px;
+        display: flex;
+        flex-shrink: 0;
+    }
+
+    :global(.host-card-details) {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+    }
+
+    :global(.host-card-name) {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text-primary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    :global(.host-card-meta-row) {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    :global(.host-card-meta) {
+        font-size: 11px;
+        color: var(--text-muted);
+    }
+
+    :global(.host-card-action) {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-shrink: 0;
+    }
+
+    :global(.host-open-icon) {
+        font-size: 18px;
+        color: var(--text-muted);
+        transition:
+            color 0.15s ease,
+            transform 0.15s ease;
+    }
+
+    :global(.host-card:hover .host-open-icon) {
+        color: var(--accent-text);
+        transform: translate(1px, -1px);
+    }
+
+    :global(.badge-connect) {
+        font-size: 10px;
+        font-weight: 600;
+        padding: 2px 7px;
+        border-radius: 4px;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        color: var(--text-secondary);
+        white-space: nowrap;
+        user-select: none;
+        letter-spacing: 0.02em;
+        transition: all 0.15s ease;
+    }
+
+    :global(.badge-connect.connected) {
+        background: rgba(166, 227, 161, 0.18);
+        color: #a6e3a1;
+        border-color: rgba(166, 227, 161, 0.4);
+    }
+
+    :global(.badge-connect.connecting) {
+        background: rgba(240, 198, 116, 0.18);
+        color: var(--accent-text);
+        border-color: rgba(240, 198, 116, 0.4);
+    }
+
+    :global(.status-text) {
+        font-size: 11px;
+        font-weight: 600;
+        color: #a6e3a1;
+    }
+
     .proxy-layout {
         display: grid;
         grid-template-columns: 1fr 240px;

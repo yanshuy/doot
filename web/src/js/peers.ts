@@ -3,41 +3,81 @@ import { SS } from "./signaling";
 import { PEER_ID } from "./peerId";
 export { PEER_ID };
 
+export type Role = "proxy" | "client";
+export let currentRole: Role = "client";
 
-type Peer = {
+export interface PeerState {
     id: string;
-    conn: RTCPeerConnection;
-};
+    role?: Role;
+    username?: string;
+    target_host?: string;
+    conn?: RTCPeerConnection;
+    [key: string]: any;
+}
 
 export const Peers = {
-    map: new Map<string, Peer>(),
-    listeners: new Set<(peers: Map<string, Peer>) => void>(),
+    map: new Map<string, PeerState>(),
+    listeners: new Set<(peers: Map<string, PeerState>) => void>(),
 
-    onchange(listener: (peers: Map<string, Peer>) => void) {
+    onchange(listener: (peers: Map<string, PeerState>) => void) {
         Peers.listeners.add(listener);
         return () => {
             Peers.listeners.delete(listener);
         };
     },
 
-    notifyListeners() {
+    notify() {
         for (const listener of Peers.listeners) {
-            listener(Peers.map);
+            try {
+                listener(Peers.map);
+            } catch (err) {
+                console.error("[Peers] Listener error:", err);
+            }
         }
     },
-    set(peerId: string, peer: Peer) {
-        Peers.map.set(peerId, peer);
-        Peers.notifyListeners();
+
+    get(peerId: string): PeerState | undefined {
+        return Peers.map.get(peerId);
     },
+
+    setMeta(peerId: string, metadata: Partial<PeerState>) {
+        const existing = Peers.map.get(peerId) || { id: peerId };
+        Object.assign(existing, metadata);
+        Peers.map.set(peerId, existing);
+        Peers.notify();
+    },
+
+    setConn(peerId: string, conn: RTCPeerConnection) {
+        const existing = Peers.map.get(peerId) || { id: peerId };
+        existing.conn = conn;
+        Peers.map.set(peerId, existing);
+        Peers.notify();
+    },
+
     delete(peerId: string) {
+        const peer = Peers.map.get(peerId);
+        if (peer?.conn) {
+            peer.conn.close();
+        }
         Peers.map.delete(peerId);
-        Peers.notifyListeners();
+        Peers.notify();
+    },
+
+    clear() {
+        for (const peer of Peers.map.values()) {
+            if (peer.conn) {
+                peer.conn.close();
+            }
+        }
+        Peers.map.clear();
+        Peers.notify();
     },
 };
 
-export function getConnection(peerId: string) {
-    const peer = Peers.map.get(peerId);
-    return peer?.conn;
+export let selectedHostPeerId: string | null = null;
+
+export function getConnection(peerId: string): RTCPeerConnection | undefined {
+    return Peers.map.get(peerId)?.conn;
 }
 
 export const STUN_SERVERS = [
@@ -48,7 +88,7 @@ export const STUN_SERVERS = [
     "stun:stun4.l.google.com:19302",
 ];
 
-export function createConnection(peerId: string) {
+export function createConnection(peerId: string): RTCPeerConnection {
     let pc = getConnection(peerId);
     if (pc) return pc;
 
@@ -56,7 +96,7 @@ export function createConnection(peerId: string) {
         iceServers: [{ urls: STUN_SERVERS }],
     });
 
-    Peers.set(peerId, { id: peerId, conn: pc });
+    Peers.setConn(peerId, pc);
 
     pc.ondatachannel = (event) => {
         const dc = event.channel;
@@ -81,9 +121,13 @@ export function createConnection(peerId: string) {
             pc.connectionState === "failed" ||
             pc.connectionState === "closed"
         ) {
-            Peers.delete(peerId);
+            const peer = Peers.map.get(peerId);
+            if (peer) {
+                peer.conn = undefined;
+            }
+            Peers.notify();
         } else if (pc.connectionState === "connected") {
-            Peers.notifyListeners();
+            Peers.notify();
         }
     };
 
@@ -95,9 +139,9 @@ export async function sendOffer(peerId: string): Promise<void> {
         console.warn(`[Peers] Cannot send offer: current role is "${currentRole}" (only clients can initiate)`);
         return;
     }
-    const targetMeta = knownRoomPeers.get(peerId);
-    if (targetMeta?.role !== "proxy") {
-        console.warn(`[Peers] Cannot send offer to peer ${peerId}: target is not a proxy (role: ${targetMeta?.role})`);
+    const targetPeer = Peers.map.get(peerId);
+    if (targetPeer?.role !== "proxy") {
+        console.warn(`[Peers] Cannot send offer to peer ${peerId}: target is not a proxy (role: ${targetPeer?.role})`);
         return;
     }
 
@@ -139,22 +183,35 @@ export async function handleOffer(fromPeer: string, sdp: string): Promise<void> 
     });
 }
 
-export type Role = "proxy" | "client";
-export let currentRole: Role = "client";
+export function selectHost(peerId: string | null) {
+    if (selectedHostPeerId === peerId) return;
 
-export const knownRoomPeers = new Map<string, { role?: string }>();
+    // Disconnect from previous host connection if switching
+    if (selectedHostPeerId) {
+        const oldPc = getConnection(selectedHostPeerId);
+        if (oldPc) {
+            oldPc.close();
+            const oldPeer = Peers.map.get(selectedHostPeerId);
+            if (oldPeer) oldPeer.conn = undefined;
+        }
+    }
 
-function isServerPeer(metadata?: { role?: string }): boolean {
-    return metadata?.role === "proxy";
+    selectedHostPeerId = peerId;
+    if (selectedHostPeerId && currentRole === "client") {
+        sendOffer(selectedHostPeerId);
+    }
+    Peers.notify();
 }
 
 function checkAndConnect() {
     if (currentRole !== "client") return;
-    for (const [peerId, meta] of knownRoomPeers) {
-        if (peerId === PEER_ID) continue;
-        if (isServerPeer(meta) && !getConnection(peerId)) {
-            sendOffer(peerId);
+
+    // If client selected a specific host peer, connect to that one
+    if (selectedHostPeerId) {
+        if (!getConnection(selectedHostPeerId) && Peers.map.has(selectedHostPeerId)) {
+            sendOffer(selectedHostPeerId);
         }
+        return;
     }
 }
 
@@ -163,53 +220,62 @@ export function setRole(role: Role) {
 
     if (currentRole === "proxy") {
         // If becoming a proxy, close any connections to other proxy hosts
-        for (const [peerId, meta] of knownRoomPeers) {
-            if (meta?.role === "proxy") {
-                const pc = getConnection(peerId);
-                if (pc) {
-                    pc.close();
-                    Peers.delete(peerId);
-                }
+        for (const [peerId, peer] of Peers.map) {
+            if (peer.role === "proxy" && peer.conn) {
+                peer.conn.close();
+                peer.conn = undefined;
             }
         }
+        Peers.notify();
     } else if (currentRole === "client") {
         checkAndConnect();
     }
 }
 
 SS.on("room_joined", (msg) => {
-    knownRoomPeers.clear();
+    Peers.clear();
     for (const peer of msg.peers) {
-        knownRoomPeers.set(peer.peer_id, peer.metadata || {});
+        Peers.setMeta(peer.peer_id, {
+            id: peer.peer_id,
+            role: peer.metadata?.role,
+            username: peer.metadata?.username,
+            target_host: peer.metadata?.target_host,
+            ...peer.metadata,
+        });
     }
     checkAndConnect();
-    Peers.notifyListeners();
 });
 
 SS.on("peer_joined", (msg) => {
-    knownRoomPeers.set(msg.peer_id, msg.metadata || {});
+    Peers.setMeta(msg.peer_id, {
+        id: msg.peer_id,
+        role: msg.metadata?.role,
+        username: msg.metadata?.username,
+        target_host: msg.metadata?.target_host,
+        ...msg.metadata,
+    });
     checkAndConnect();
-    Peers.notifyListeners();
 });
 
 SS.on("peer_metadata_updated", (msg) => {
-    knownRoomPeers.set(msg.peer_id, msg.metadata || {});
+    Peers.setMeta(msg.peer_id, {
+        role: msg.metadata?.role,
+        username: msg.metadata?.username,
+        target_host: msg.metadata?.target_host,
+        ...msg.metadata,
+    });
     checkAndConnect();
-    Peers.notifyListeners();
 });
 
 SS.on("peer_left", (msg) => {
-    knownRoomPeers.delete(msg.peer_id);
-    const pc = getConnection(msg.peer_id);
-    if (pc) {
-        pc.close();
-        Peers.delete(msg.peer_id);
+    if (selectedHostPeerId === msg.peer_id) {
+        selectedHostPeerId = null;
     }
-    Peers.notifyListeners();
+    Peers.delete(msg.peer_id);
 });
 
 SS.on("peer_offer", (msg) => {
-    const fromMeta = knownRoomPeers.get(msg.from_peer);
+    const fromMeta = Peers.map.get(msg.from_peer);
     if (currentRole === "proxy" && fromMeta?.role === "proxy") {
         console.warn(`[Peers] Rejected offer from peer ${msg.from_peer}: both peers are proxy hosts`);
         return;

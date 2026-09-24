@@ -1,0 +1,85 @@
+---
+// Minimal, sleek floating status toast for signaling server connection state
+---
+
+<div id="signaling-toast" class="signaling-toast" hidden role="alert" aria-live="polite">
+    <div class="toast-content">
+        <span class="toast-title mono-font">Signaling Disconnected</span>
+        <span class="toast-desc">Reconnecting to server...</span>
+    </div>
+</div>
+
+<style>
+    .signaling-toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        padding: 10px 16px;
+        background: var(--bg-surface, #323752);
+        border: 1px solid rgba(243, 139, 168, 0.35); /* catppuccin red / soft warning */
+        border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        color: var(--text-primary, #eef0f7);
+        backdrop-filter: blur(12px);
+        pointer-events: none;
+    }
+
+    .signaling-toast[hidden] {
+        display: none !important;
+    }
+
+    .toast-content {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .toast-title {
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        color: #f38ba8;
+    }
+
+    .toast-desc {
+        font-size: 11px;
+        color: var(--text-secondary, #a3a8c2);
+    }
+
+    .mono-font {
+        font-family: var(--font-mono, ui-monospace, monospace);
+    }
+
+    @media (max-width: 640px) {
+        .signaling-toast {
+            bottom: 16px;
+            right: 16px;
+            left: 16px;
+            justify-content: center;
+        }
+    }
+</style>
+
+<script>
+    import { SS } from "../js/signaling";
+
+    const toast = document.getElementById("signaling-toast");
+    if (toast) {
+        let hideTimeout: number | undefined;
+
+        SS.onConnectionChange((status) => {
+            if (status === "disconnected") {
+                clearTimeout(hideTimeout);
+                toast.hidden = false;
+            } else if (status === "connected") {
+                // Keep brief transition then smoothly hide
+                hideTimeout = window.setTimeout(() => {
+                    toast.hidden = true;
+                }, 300);
+            }
+        });
+    }
+</script>

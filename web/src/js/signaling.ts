@@ -1,11 +1,9 @@
 import { PEER_ID } from "./peerId";
 
-let proto = window.location.protocol == "https:" ? "wss" : "ws";
+const SIGNAL_SERVER_HOST = "toucan-driven-admittedly.ngrok-free.app";
+const protocol = "wss";
 
-const SIGNAL_SERVER_ORIGIN = "localhost:3333";
-proto = "ws";
-
-export const SIGNAL_SERVER_URL = `${proto}://${SIGNAL_SERVER_ORIGIN}/yo`;
+export const SIGNAL_SERVER_URL = `${protocol}://${SIGNAL_SERVER_HOST}/yo`;
 
 export interface PeerInfo {
   peer_id: string;
@@ -79,57 +77,82 @@ export type SignalHandler<T extends Signal["type"]> = (
   message: Extract<Signal, { type: T }>,
 ) => void;
 
+export type ConnectionStatus = "connecting" | "connected" | "disconnected";
+
 export type SignalingServer = {
   socket: WebSocket;
   joinRoom: (roomId: string, metadata?: any) => void;
   sendSignal: (payload: SendSignal) => void;
   on<T extends Signal["type"]>(type: T, handler: SignalHandler<T>): () => void;
   off<T extends Signal["type"]>(type: T, handler: SignalHandler<T>): void;
+  onConnectionChange: (handler: (status: ConnectionStatus) => void) => () => void;
+  isConnected: () => boolean;
 };
 
 export function SignalServer(peerId: string): SignalingServer {
-  const socket = new WebSocket(`${SIGNAL_SERVER_URL}?peer_id=${peerId}`);
+  let socket: WebSocket;
+  let currentRoom: { roomId: string; metadata?: any } | null = null;
   const listeners = new Map<string, Set<(msg: any) => void>>();
+  const statusListeners = new Set<(status: ConnectionStatus) => void>();
   const sendQueue: SendSignal[] = [];
 
-  socket.onopen = () => {
-    while (sendQueue.length > 0) {
-      const payload = sendQueue.shift();
-      if (payload) {
-        socket.send(JSON.stringify(payload));
-      }
-    }
-  };
-
-  function handleSignal(message: Signal) {
-    const handlers = listeners.get(message.type);
-    if (handlers) {
-      handlers.forEach((handler) => handler(message));
-    }
+  function setStatus(status: ConnectionStatus) {
+    statusListeners.forEach((fn) => fn(status));
   }
 
-  socket.onmessage = async (event: MessageEvent<Signal>) => {
-    if (typeof event.data !== "string") return;
+  function connect() {
+    setStatus("connecting");
+    socket = new WebSocket(`${SIGNAL_SERVER_URL}?peer_id=${peerId}`);
+    server.socket = socket;
 
-    let message: Signal;
+    socket.onopen = () => {
+      setStatus("connected");
+      if (currentRoom) {
+        socket.send(JSON.stringify({ type: "join", room_id: currentRoom.roomId, metadata: currentRoom.metadata }));
+      }
+      while (sendQueue.length > 0) {
+        const payload = sendQueue.shift();
+        if (payload) {
+          socket.send(JSON.stringify(payload));
+        }
+      }
+    };
 
-    try {
-      const json = JSON.parse(event.data);
-      if (!isValidSignal(json)) {
-        console.warn("[Signaling] Discarded invalid message schema:", json);
+    socket.onclose = () => {
+      setStatus("disconnected");
+      setTimeout(connect, 3000);
+    };
+
+    socket.onerror = () => {
+      setStatus("disconnected");
+    };
+
+    socket.onmessage = async (event: MessageEvent<Signal>) => {
+      if (typeof event.data !== "string") return;
+
+      let message: Signal;
+      try {
+        const json = JSON.parse(event.data);
+        if (!isValidSignal(json)) {
+          console.warn("[Signaling] Discarded invalid message schema:", json);
+          return;
+        }
+        message = json;
+      } catch (err) {
+        console.error("[Signaling] JSON parse error:", err);
         return;
       }
-      message = json;
-    } catch (err) {
-      console.error("[Signaling] JSON parse error:", err);
-      return;
-    }
 
-    handleSignal(message);
-  };
+      const handlers = listeners.get(message.type);
+      if (handlers) {
+        handlers.forEach((handler) => handler(message));
+      }
+    };
+  }
 
   const server: SignalingServer = {
-    socket,
+    // @ts-ignore
+    socket: null,
 
     sendSignal(payload: SendSignal) {
       if (socket.readyState === WebSocket.OPEN) {
@@ -142,6 +165,7 @@ export function SignalServer(peerId: string): SignalingServer {
     },
 
     joinRoom(roomId: string, metadata?: any) {
+      currentRoom = { roomId, metadata };
       this.sendSignal({ type: "join", room_id: roomId, metadata });
     },
 
@@ -158,8 +182,29 @@ export function SignalServer(peerId: string): SignalingServer {
     off<T extends Signal["type"]>(type: T, handler: SignalHandler<T>) {
       listeners.get(type)?.delete(handler);
     },
+
+    onConnectionChange(handler: (status: ConnectionStatus) => void) {
+      statusListeners.add(handler);
+      if (socket) {
+        if (socket.readyState === WebSocket.OPEN) {
+          handler("connected");
+        } else if (socket.readyState === WebSocket.CONNECTING) {
+          handler("connecting");
+        } else {
+          handler("disconnected");
+        }
+      }
+      return () => {
+        statusListeners.delete(handler);
+      };
+    },
+
+    isConnected() {
+      return socket?.readyState === WebSocket.OPEN;
+    },
   };
 
+  connect();
   return server;
 }
 

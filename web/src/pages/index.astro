@@ -1,6 +1,7 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import DootLogo from "../components/DootLogo.astro";
+import UserBadge from "../components/UserBadge.astro";
 ---
 
 <Layout>
@@ -10,77 +11,8 @@ import DootLogo from "../components/DootLogo.astro";
 				<DootLogo size={56} />
 				<span class="brand-name">doot</span>
 			</a>
-			<button
-				id="info-btn"
-				class="info-btn"
-				aria-label="About doot"
-				title="About doot"
-			>
-				<iconify-icon icon="mdi:information-outline"></iconify-icon>
-			</button>
+			<UserBadge />
 		</header>
-
-		<!-- Information Dialog -->
-		<dialog id="info-dialog" class="info-dialog">
-			<div class="dialog-content">
-				<div class="dialog-header">
-					<div class="dialog-title-wrap">
-						<h2 class="dialog-title">Direct P2P & Proxy</h2>
-					</div>
-					<button
-						id="dialog-close-btn"
-						class="dialog-close-btn"
-						aria-label="Close dialog"
-					>
-						<iconify-icon icon="mdi:close"></iconify-icon>
-					</button>
-				</div>
-
-				<div class="dialog-body">
-					<div class="info-item">
-						<div class="info-icon">
-							<iconify-icon icon="mdi:shield-lock-outline"
-							></iconify-icon>
-						</div>
-						<div class="info-text">
-							<strong>End-to-End Direct P2P</strong>
-							<p>
-								Files & HTTP streams flow directly between peers
-								over encrypted WebRTC channels.
-							</p>
-						</div>
-					</div>
-
-					<div class="info-item">
-						<div class="info-icon">
-							<iconify-icon icon="mdi:swap-horizontal-bold"
-							></iconify-icon>
-						</div>
-						<div class="info-text">
-							<strong>P2P HTTP Proxy</strong>
-							<p>
-								Tunnel website HTTP requests dynamically to a
-								local app server running on a peer machine.
-							</p>
-						</div>
-					</div>
-
-					<div class="info-item">
-						<div class="info-icon">
-							<iconify-icon icon="mdi:cloud-off-outline"
-							></iconify-icon>
-						</div>
-						<div class="info-text">
-							<strong>Zero Cloud Storage</strong>
-							<p>
-								No data logging, no cloud storage, and zero
-								intermediate servers.
-							</p>
-						</div>
-					</div>
-				</div>
-			</div>
-		</dialog>
 
 		<main class="main-content">
 			<div class="hero-section">
@@ -141,34 +73,11 @@ import DootLogo from "../components/DootLogo.astro";
 </Layout>
 
 <script>
-	const infoBtn = document.getElementById(
-		"info-btn",
-	) as HTMLButtonElement | null;
-	const infoDialog = document.getElementById(
-		"info-dialog",
-	) as HTMLDialogElement | null;
-	const dialogCloseBtn = document.getElementById(
-		"dialog-close-btn",
-	) as HTMLButtonElement | null;
 	const joinForm = document.getElementById(
 		"join-form",
 	) as HTMLFormElement | null;
 	const tabBtnFile = document.getElementById("tab-btn-file");
 	const tabBtnProxy = document.getElementById("tab-btn-proxy");
-
-	infoBtn?.addEventListener("click", () => {
-		infoDialog?.showModal();
-	});
-
-	dialogCloseBtn?.addEventListener("click", () => {
-		infoDialog?.close();
-	});
-
-	infoDialog?.addEventListener("click", (e) => {
-		if (e.target === infoDialog) {
-			infoDialog.close();
-		}
-	});
 
 	tabBtnFile?.addEventListener("click", () => {
 		if (joinForm) joinForm.action = "/room";
@@ -191,127 +100,6 @@ import DootLogo from "../components/DootLogo.astro";
 		max-width: 880px;
 		margin: 0 auto;
 		padding: 24px 20px;
-	}
-
-	.info-btn {
-		background: transparent;
-		border: 1px solid var(--border-subtle);
-		color: var(--text-muted);
-		width: 32px;
-		height: 32px;
-		border-radius: 50%;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 18px;
-		cursor: pointer;
-		transition:
-			color 0.15s ease,
-			border-color 0.15s ease,
-			background-color 0.15s ease;
-	}
-
-	.info-btn:hover {
-		color: var(--text-secondary);
-		border-color: var(--border-focus);
-		background-color: var(--bg-surface);
-	}
-
-	/* Info Dialog */
-	.info-dialog {
-		background: var(--bg-surface);
-		border: 1px solid var(--border-subtle);
-		border-radius: 12px;
-		padding: 0;
-		color: var(--text-primary);
-		max-width: 440px;
-		width: 90vw;
-		box-shadow:
-			0 16px 40px rgba(0, 0, 0, 0.35),
-			0 0 0 1px rgba(255, 255, 255, 0.05);
-		margin: auto;
-		outline: none;
-	}
-
-	.info-dialog::backdrop {
-		background: rgba(15, 17, 26, 0.7);
-		backdrop-filter: blur(4px);
-	}
-
-	.dialog-content {
-		padding: 24px;
-		display: flex;
-		flex-direction: column;
-		gap: 20px;
-	}
-
-	.dialog-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding-bottom: 14px;
-		border-bottom: 1px solid var(--border-subtle);
-	}
-
-	.dialog-title {
-		font-size: 16px;
-		font-weight: 700;
-		letter-spacing: -0.02em;
-	}
-
-	.dialog-close-btn {
-		background: transparent;
-		border: none;
-		color: var(--text-muted);
-		cursor: pointer;
-		font-size: 18px;
-		padding: 4px;
-		border-radius: 6px;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.dialog-close-btn:hover {
-		color: var(--text-primary);
-		background: var(--bg-surface-elevated);
-	}
-
-	.dialog-body {
-		display: flex;
-		flex-direction: column;
-		gap: 14px;
-	}
-
-	.info-item {
-		display: flex;
-		gap: 12px;
-		align-items: flex-start;
-	}
-
-	.info-icon {
-		margin-inline-end: 8px;
-		color: var(--accent-text);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 22px;
-		flex-shrink: 0;
-		margin-top: 4px;
-	}
-
-	.info-text strong {
-		display: block;
-		font-size: 13px;
-		font-weight: 600;
-		color: var(--text-primary);
-		margin-bottom: 2px;
-	}
-
-	.info-text p {
-		font-size: 12px;
-		color: var(--text-secondary);
-		line-height: 1.45;
 	}
 
 	.main-content {

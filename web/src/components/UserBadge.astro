@@ -1,0 +1,127 @@
+---
+
+---
+
+<div class="user-badge-container">
+    <div class="user-badge mono-font">
+        <span class="user-icon">
+            <iconify-icon icon="mdi:account"></iconify-icon>
+        </span>
+        <input
+            id="doot-username-input"
+            type="text"
+            maxlength="24"
+            spellcheck="false"
+            autocomplete="off"
+            class="user-input mono-font"
+            placeholder="username"
+            title="Click to edit your display name"
+        />
+    </div>
+</div>
+
+<style>
+    .user-badge-container {
+        display: flex;
+        align-items: center;
+    }
+
+    .user-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        background: var(--bg-input, #222436);
+        border: 1px solid var(--border-subtle, #40456866);
+        border-radius: 9px;
+        padding: 6px 14px;
+        height: 38px;
+        box-sizing: border-box;
+        transition:
+            border-color 0.15s ease,
+            background-color 0.15s ease,
+            box-shadow 0.15s ease;
+    }
+
+    .user-badge:hover {
+        border-color: var(--border-subtle, #565d8488);
+    }
+
+    .user-badge:focus-within {
+        border-color: var(--border-focus, #565d84);
+        background-color: var(--bg-surface, #323752);
+    }
+
+    .user-icon {
+        color: var(--accent-text, #f0c674);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        flex-shrink: 0;
+    }
+
+    .user-input {
+        background: transparent;
+        border: none;
+        outline: none;
+        color: var(--text-primary, #eef0f7);
+        font-size: 14px;
+        font-weight: 500;
+        text-align: center;
+        width: 150px;
+        transition: width 0.15s ease;
+    }
+
+    .user-input:focus {
+        width: 170px;
+    }
+
+    .mono-font {
+        font-family: var(--font-mono, ui-monospace, monospace);
+    }
+
+    @media (max-width: 640px) {
+        .user-badge {
+            height: 34px;
+            padding: 4px 10px;
+        }
+        .user-icon {
+            font-size: 16px;
+        }
+        .user-input {
+            font-size: 13px;
+            width: 120px;
+        }
+        .user-input:focus {
+            width: 140px;
+        }
+    }
+</style>
+
+<script>
+    import { getStoredUsername, setStoredUsername } from "../js/username";
+
+    const input = document.getElementById(
+        "doot-username-input",
+    ) as HTMLInputElement | null;
+    if (input) {
+        input.value = getStoredUsername();
+
+        const save = () => {
+            const updated = setStoredUsername(input.value);
+            input.value = updated;
+            window.dispatchEvent(
+                new CustomEvent("doot:username-changed", { detail: updated }),
+            );
+        };
+
+        input.addEventListener("change", save);
+        input.addEventListener("blur", save);
+        input.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                input.blur();
+            }
+        });
+    }
+</script>
