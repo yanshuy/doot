@@ -66,10 +66,21 @@ import DootLogo from "../components/DootLogo.astro";
                                     <label for="host-target-input" class="label"
                                         >LOCAL SERVER ADDRESS</label
                                     >
-                                    <span
-                                        id="target-health-badge"
-                                        class="target-health-badge mono-font"
-                                        style="display: none;"></span>
+                                    <div class="target-health-controls">
+                                        <span
+                                            id="target-health-badge"
+                                            class="target-health-badge mono-font"
+                                            style="display: none;"></span>
+                                        <button
+                                            id="btn-retry-health"
+                                            type="button"
+                                            class="btn-retry-health"
+                                            title="Recheck local server connection"
+                                        >
+                                            <iconify-icon icon="mdi:refresh"></iconify-icon>
+                                            <span>Retry</span>
+                                        </button>
+                                    </div>
                                 </div>
                                 <input
                                     id="host-target-input"
@@ -197,7 +208,6 @@ import DootLogo from "../components/DootLogo.astro";
     import { handleClientProxyRequest } from "../js/proxy/client";
     import { setTargetHost, RequestLogs } from "../js/proxy/host";
     import { getStoredUsername } from "../js/username";
-    import { undefined } from "astro:schema";
 
     const search = window.location.search;
     const params = new URLSearchParams(search);
@@ -258,7 +268,7 @@ import DootLogo from "../components/DootLogo.astro";
             navigator.clipboard.writeText(hostClientUrlInput.value);
             hostCopyClientUrlBtn.textContent = "Copied";
             setTimeout(() => {
-                hostCopyClientUrlBtn.textContent = "Copy Link";
+                hostCopyClientUrlBtn.textContent = "Copy";
             }, 1500);
         }
     });
@@ -450,6 +460,15 @@ import DootLogo from "../components/DootLogo.astro";
     hostTargetInput?.addEventListener("input", syncHostTarget);
     hostTargetInput?.addEventListener("change", syncHostTarget);
 
+    const btnRetryHealth = document.getElementById("btn-retry-health");
+    btnRetryHealth?.addEventListener("click", async () => {
+        if (hostTargetInput?.value) {
+            btnRetryHealth.classList.add("spinning");
+            await checkTargetHealth(hostTargetInput.value.trim());
+            btnRetryHealth.classList.remove("spinning");
+        }
+    });
+
     // Broadcast channel to notify waiting tunnel tabs reactively
     const tunnelChannel =
         "BroadcastChannel" in window
@@ -480,7 +499,7 @@ import DootLogo from "../components/DootLogo.astro";
         if (hostsEmpty) hostsEmpty.style.display = "none";
         if (hostsContainer) {
             hostsContainer.style.display = "flex";
-            hostsContainer.innerHTML = availableHosts
+            const newHtml = availableHosts
                 .map((peer) => {
                     const peerId = peer.id;
                     const isSelected = selectedHostPeerId === peerId;
@@ -522,25 +541,29 @@ import DootLogo from "../components/DootLogo.astro";
                 })
                 .join("");
 
-            // When user clicks the host card, select the host and open the tunnel tab
-            hostsContainer.querySelectorAll(".host-card").forEach((card) => {
-                const clickHandler = () => {
-                    const targetId = (card as HTMLElement).dataset.peerId;
-                    if (targetId) {
-                        selectHost(targetId);
-                        window.open(tunnelUrl, "_blank");
-                        renderHostsList();
-                    }
-                };
+            if (hostsContainer.innerHTML !== newHtml) {
+                hostsContainer.innerHTML = newHtml;
 
-                card.addEventListener("click", clickHandler);
-                card.addEventListener("keydown", (e: any) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        clickHandler();
-                    }
+                // When user clicks the host card, select the host and open the tunnel tab
+                hostsContainer.querySelectorAll(".host-card").forEach((card) => {
+                    const clickHandler = () => {
+                        const targetId = (card as HTMLElement).dataset.peerId;
+                        if (targetId) {
+                            selectHost(targetId);
+                            window.open(tunnelUrl, "_blank");
+                            renderHostsList();
+                        }
+                    };
+
+                    card.addEventListener("click", clickHandler);
+                    card.addEventListener("keydown", (e: any) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            clickHandler();
+                        }
+                    });
                 });
-            });
+            }
         }
     }
 
@@ -875,6 +898,50 @@ import DootLogo from "../components/DootLogo.astro";
         align-items: center;
     }
 
+    .target-health-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-retry-health {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: 5px;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-family: var(--font-mono);
+        font-weight: 500;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition:
+            color 0.15s ease,
+            border-color 0.15s ease,
+            background-color 0.15s ease;
+    }
+
+    .btn-retry-health:hover {
+        color: var(--accent-text);
+        border-color: var(--border-focus);
+        background: var(--bg-surface-elevated);
+    }
+
+    .btn-retry-health.spinning iconify-icon {
+        animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+        from {
+            transform: rotate(0deg);
+        }
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
     .label {
         font-family: var(--font-mono);
         font-size: 10px;
@@ -1033,6 +1100,7 @@ import DootLogo from "../components/DootLogo.astro";
     }
 
     :global(.host-card) {
+        position: relative;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -1040,29 +1108,50 @@ import DootLogo from "../components/DootLogo.astro";
         width: 100%;
         padding: 14px 18px;
         background: var(--bg-surface-elevated, #3b4162);
-        border: 1px solid var(--border-subtle);
-        border-radius: 9px;
+        border: 1.5px solid var(--border-subtle);
+        border-radius: 12px 10px 14px 11px;
         text-decoration: none;
         color: inherit;
         cursor: pointer;
+        outline: none;
         transition:
             border-color 0.15s ease,
             background-color 0.15s ease,
-            box-shadow 0.15s ease,
-            transform 0.1s ease;
+            box-shadow 0.15s ease;
+    }
+
+    :global(.host-card:focus) {
+        outline: none;
     }
 
     :global(.host-card:hover) {
-        border-color: var(--border-focus);
-        background: #434a6f;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-        transform: translateY(-1px);
+        border-color: var(--accent-primary);
+        background-color: rgba(255, 158, 100, 0.03);
+        background-image: repeating-linear-gradient(
+            -50deg,
+            transparent,
+            transparent 16px,
+            rgba(255, 158, 100, 0.08) 16px,
+            rgba(255, 158, 100, 0.08) 20px
+        );
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
     }
 
     :global(.host-card.selected) {
         border-color: var(--accent-primary);
-        background: rgba(255, 158, 100, 0.12);
+        background-color: rgba(255, 158, 100, 0.06);
+        background-image: repeating-linear-gradient(
+            -50deg,
+            transparent,
+            transparent 14px,
+            rgba(255, 158, 100, 0.11) 14px,
+            rgba(255, 158, 100, 0.11) 15.5px
+        );
         box-shadow: 0 0 0 1px var(--accent-primary);
+    }
+
+    :global(.host-card:active) {
+        background-color: rgba(255, 158, 100, 0.12);
     }
 
     :global(.host-card-info) {
@@ -1090,7 +1179,7 @@ import DootLogo from "../components/DootLogo.astro";
     :global(.host-card-name) {
         font-size: 15px;
         font-weight: 600;
-        color: var(--text-primary);
+        color: #ffffff;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -1104,7 +1193,7 @@ import DootLogo from "../components/DootLogo.astro";
 
     :global(.host-card-meta) {
         font-size: 11px;
-        color: var(--text-muted);
+        color: #9aa1c2;
     }
 
     :global(.host-card-action) {
@@ -1138,7 +1227,6 @@ import DootLogo from "../components/DootLogo.astro";
         white-space: nowrap;
         user-select: none;
         letter-spacing: 0.02em;
-        transition: all 0.15s ease;
     }
 
     :global(.badge-connect.connected) {
